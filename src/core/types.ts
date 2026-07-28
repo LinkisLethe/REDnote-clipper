@@ -88,6 +88,7 @@ export interface OcrJob {
 
 export type BackgroundRequest =
   | { target: "background"; type: "RUN_OCR"; note: Note }
+  | { target: "background"; type: "RESTORE_OR_RUN_OCR"; note: Note }
   | { target: "background"; type: "CANCEL_OCR"; jobId: string }
   | { target: "background"; type: "PAUSE_OCR"; jobId: string }
   | { target: "background"; type: "RESUME_OCR"; jobId: string }
@@ -138,7 +139,8 @@ export type OffscreenRequest =
       abortInitialization?: boolean;
     }
   | { target: "offscreen"; type: "PAUSE_OCR"; jobId: string }
-  | { target: "offscreen"; type: "RESUME_OCR"; jobId: string };
+  | { target: "offscreen"; type: "RESUME_OCR"; jobId: string }
+  | { target: "offscreen"; type: "HAS_OCR_JOB"; jobId: string };
 
 export interface PopupJobUpdate {
   target: "popup";

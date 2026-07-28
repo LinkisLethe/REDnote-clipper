@@ -5,6 +5,7 @@ import type {
   OffscreenRequest,
   PopupJobUpdate
 } from "./core/types";
+import { shouldReuseOcrJob } from "./core/ocr-job";
 
 const OCR_JOB_KEY = "lastOcrJob";
 let creatingOffscreen: Promise<void> | null = null;
@@ -43,6 +44,21 @@ async function saveJob(job: OcrJob): Promise<void> {
 async function getJob(): Promise<OcrJob | undefined> {
   const value = await chrome.storage.local.get(OCR_JOB_KEY);
   return value[OCR_JOB_KEY] as OcrJob | undefined;
+}
+
+async function hasActiveOcrJob(jobId: string): Promise<boolean> {
+  if (!(await hasOffscreenDocument())) return false;
+  try {
+    const request: OffscreenRequest = {
+      target: "offscreen",
+      type: "HAS_OCR_JOB",
+      jobId
+    };
+    const response = (await chrome.runtime.sendMessage(request)) as { active?: boolean };
+    return Boolean(response?.active);
+  } catch {
+    return false;
+  }
 }
 
 async function notifyPopup(job: OcrJob): Promise<void> {
@@ -96,6 +112,17 @@ async function startOcr(note: Note): Promise<OcrJob> {
   };
   await chrome.runtime.sendMessage(request);
   return job;
+}
+
+async function restoreOrStartOcr(note: Note): Promise<OcrJob> {
+  const stored = await getJob();
+  if (stored) {
+    const workerActive = stored.status === "completed"
+      ? false
+      : await hasActiveOcrJob(stored.id);
+    if (shouldReuseOcrJob(stored, note, workerActive)) return stored;
+  }
+  return startOcr(note);
 }
 
 async function updateStage(
@@ -250,6 +277,11 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   switch (request.type) {
     case "RUN_OCR":
       operation = startOcr((request as Extract<BackgroundRequest, { type: "RUN_OCR" }>).note);
+      break;
+    case "RESTORE_OR_RUN_OCR":
+      operation = restoreOrStartOcr(
+        (request as Extract<BackgroundRequest, { type: "RESTORE_OR_RUN_OCR" }>).note
+      );
       break;
     case "CANCEL_OCR":
       operation = cancelOcr(

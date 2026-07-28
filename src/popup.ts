@@ -8,6 +8,7 @@ import { createMarkdownFilename } from "./core/filename";
 import { createMessageGetter, getUiLanguage, localizeDocument } from "./core/i18n";
 import { applyOcrResults, renderMarkdown } from "./core/markdown";
 import { estimateRemainingMs, liveStageDurations } from "./core/ocr-progress";
+import { sameOcrJobSource } from "./core/ocr-job";
 import type {
   BackgroundRequest,
   Note,
@@ -16,7 +17,6 @@ import type {
 } from "./core/types";
 
 const OCR_ENABLED_KEY = "ocrEnabled";
-const OCR_JOB_KEY = "lastOcrJob";
 const language = getUiLanguage();
 const message = createMessageGetter(language);
 
@@ -80,14 +80,6 @@ function updateNoteMeta(): void {
     note.extractionSource === "initial-state" ? "sourceState" : "sourceDom"
   );
   noteMeta.textContent = `${message("noteMeta", [note.authorName, String(note.images.length)])} · ${message("extractedBy", source)}`;
-}
-
-function sameJobSource(job: OcrJob, value: Note): boolean {
-  return (
-    job.noteId === value.id &&
-    job.imageUrls.length === value.images.length &&
-    job.imageUrls.every((url, index) => url === value.images[index]?.url)
-  );
 }
 
 function formatDuration(durationMs: number): string {
@@ -202,7 +194,7 @@ function renderOcrProgress(job: OcrJob): void {
 }
 
 function applyJob(job: OcrJob): void {
-  if (!note || !sameJobSource(job, note)) return;
+  if (!note || !sameOcrJobSource(job, note)) return;
   currentJob = job;
   note = applyOcrResults(note, job.results);
   renderPreview();
@@ -221,18 +213,12 @@ async function restoreOrStartOcr(): Promise<void> {
     renderPreview(true);
     return;
   }
-  const stored = await chrome.storage.local.get(OCR_JOB_KEY);
-  const job = stored[OCR_JOB_KEY] as OcrJob | undefined;
-  if (
-    job &&
-    sameJobSource(job, note) &&
-    ["running", "pausing", "paused", "canceling", "completed"].includes(job.status)
-  ) {
-    applyJob(job);
-    return;
-  }
   setStatus(message("ocrStarting"), "working");
-  const request: BackgroundRequest = { target: "background", type: "RUN_OCR", note };
+  const request: BackgroundRequest = {
+    target: "background",
+    type: "RESTORE_OR_RUN_OCR",
+    note
+  };
   const response = (await chrome.runtime.sendMessage(request)) as OcrJob | { error: string };
   if ("error" in response) {
     setStatus(message("ocrFailed", response.error), "error");

@@ -29,7 +29,7 @@ const MODEL_SIZES: Record<string, number> = {
   [MODEL_URLS.recognition]: 21_319_680
 };
 const MODEL_DOWNLOAD_TIMEOUT_MS = 120_000;
-const MODEL_CACHE_TIMEOUT_MS = 10_000;
+const MODEL_CACHE_TIMEOUT_MS = 5_000;
 
 function modelSize(url: string): number {
   return MODEL_SIZES[url] ?? 0;
@@ -45,6 +45,7 @@ const resumeWaiters = new Map<string, () => void>();
 const modelObjectUrls: string[] = [];
 const modelDownloadControllers = new Set<AbortController>();
 const imageDownloadControllers = new Map<string, AbortController>();
+const activeJobs = new Set<string>();
 
 interface StageExtras {
   currentImage?: number;
@@ -83,6 +84,30 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
   }
 }
 
+async function clearModelCache(): Promise<void> {
+  try {
+    await withTimeout(
+      caches.delete(MODEL_CACHE),
+      MODEL_CACHE_TIMEOUT_MS,
+      "Clearing the OCR model cache timed out."
+    );
+  } catch {
+    // Cache Storage is optional. A broken cache must not block OCR.
+  }
+}
+
+async function deleteCachedModel(cache: Cache, url: string): Promise<void> {
+  try {
+    await withTimeout(
+      cache.delete(url),
+      MODEL_CACHE_TIMEOUT_MS,
+      "Deleting a cached OCR model timed out."
+    );
+  } catch {
+    // The next run can retry or bypass this cache entry.
+  }
+}
+
 async function reportInitialization(
   stage: OcrStage,
   progress: number,
@@ -97,7 +122,7 @@ async function reportInitialization(
 }
 
 async function downloadModel(
-  cache: Cache,
+  cache: Cache | null,
   url: string,
   onProgress: (loaded: number, total: number) => void
 ): Promise<Blob> {
@@ -118,6 +143,7 @@ async function downloadModel(
         headers: { "content-type": downloaded.headers.get("content-type") || "application/octet-stream" }
       });
       try {
+        if (!cache) return blob;
         await withTimeout(
           cache.put(url, stored.clone()),
           MODEL_CACHE_TIMEOUT_MS,
@@ -144,6 +170,10 @@ async function downloadModel(
     });
     const stored = new Response(blob);
     try {
+      if (!cache) {
+        onProgress(blob.size, total || blob.size);
+        return blob;
+      }
       await withTimeout(
         cache.put(url, stored.clone()),
         MODEL_CACHE_TIMEOUT_MS,
@@ -166,27 +196,24 @@ async function downloadModel(
 }
 
 async function cachedModelObjectUrls(report: StageReporter): Promise<[string, string]> {
-  let cache = await withTimeout(
-    caches.open(MODEL_CACHE),
-    MODEL_CACHE_TIMEOUT_MS,
-    "Opening the OCR model cache timed out."
-  );
   const urls = [MODEL_URLS.detection, MODEL_URLS.recognition] as const;
-  let cachedResponses: Array<Response | undefined>;
+  let cache: Cache | null = null;
+  let cachedResponses: Array<Response | undefined> = [undefined, undefined];
   try {
+    const openedCache = await withTimeout(
+      caches.open(MODEL_CACHE),
+      MODEL_CACHE_TIMEOUT_MS,
+      "Opening the OCR model cache timed out."
+    );
+    cache = openedCache;
     cachedResponses = await withTimeout(
-      Promise.all(urls.map((url) => cache.match(url))),
+      Promise.all(urls.map((url) => openedCache.match(url))),
       MODEL_CACHE_TIMEOUT_MS,
       "Reading the OCR model cache timed out."
     );
   } catch {
-    await caches.delete(MODEL_CACHE);
-    cache = await withTimeout(
-      caches.open(MODEL_CACHE),
-      MODEL_CACHE_TIMEOUT_MS,
-      "Resetting the OCR model cache timed out."
-    );
-    cachedResponses = [undefined, undefined];
+    await clearModelCache();
+    cache = null;
   }
 
   const cached = await Promise.all(
@@ -201,12 +228,12 @@ async function cachedModelObjectUrls(report: StageReporter): Promise<[string, st
           "Loading a cached OCR model timed out."
         );
         if (blob.size < modelSize(url) * 0.9) {
-          await cache.delete(url);
+          if (cache) await deleteCachedModel(cache, url);
           return undefined;
         }
         return blob;
       } catch {
-        await cache.delete(url);
+        if (cache) await deleteCachedModel(cache, url);
         return undefined;
       }
     })
@@ -300,7 +327,7 @@ async function getOcrInstance(jobId: string, report: StageReporter): Promise<Ocr
       instancePromise = null;
       instanceReady = false;
       initializationState = null;
-      await caches.delete(MODEL_CACHE);
+      await clearModelCache();
       for (const url of modelObjectUrls.splice(0)) URL.revokeObjectURL(url);
       throw error;
     });
@@ -506,6 +533,7 @@ async function runRecognitionQueued(operation: () => Promise<void>): Promise<voi
 }
 
 async function processJob(jobId: string, imageUrls: string[]): Promise<void> {
+  activeJobs.add(jobId);
   const jobStartedAt = performance.now();
   const tracker = createStageTracker(jobId);
   try {
@@ -555,6 +583,7 @@ async function processJob(jobId: string, imageUrls: string[]): Promise<void> {
       error: error instanceof Error ? error.message : String(error)
     });
   } finally {
+    activeJobs.delete(jobId);
     initializationSubscribers.delete(jobId);
     canceledJobs.delete(jobId);
     pausedJobs.delete(jobId);
@@ -579,6 +608,11 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   if (request.type === "RESUME_OCR") {
     resumeJob((request as Extract<OffscreenRequest, { type: "RESUME_OCR" }>).jobId);
     sendResponse({ accepted: true });
+    return false;
+  }
+  if (request.type === "HAS_OCR_JOB") {
+    const jobId = (request as Extract<OffscreenRequest, { type: "HAS_OCR_JOB" }>).jobId;
+    sendResponse({ active: activeJobs.has(jobId) });
     return false;
   }
   if (request.type === "PROCESS_OCR") {

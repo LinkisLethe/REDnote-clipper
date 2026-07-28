@@ -32,6 +32,8 @@ const ocrElapsed = document.querySelector<HTMLElement>("#ocrElapsed")!;
 const ocrRemaining = document.querySelector<HTMLElement>("#ocrRemaining")!;
 const ocrProgressDetail = document.querySelector<HTMLElement>("#ocrProgressDetail")!;
 const ocrStepTimings = document.querySelector<HTMLElement>("#ocrStepTimings")!;
+const pauseOcrButton = document.querySelector<HTMLButtonElement>("#pauseOcrButton")!;
+const stopOcrButton = document.querySelector<HTMLButtonElement>("#stopOcrButton")!;
 const noteMeta = document.querySelector<HTMLElement>("#noteMeta")!;
 const ocrToggle = document.querySelector<HTMLInputElement>("#ocrToggle")!;
 const refreshButton = document.querySelector<HTMLButtonElement>("#refreshButton")!;
@@ -51,6 +53,7 @@ function setStatus(
   state: "working" | "success" | "error" | "neutral" = "neutral"
 ): void {
   statusText.textContent = text;
+  statusPanel.hidden = false;
   statusPanel.className = `status-panel ${state === "neutral" ? "" : `is-${state}`}`.trim();
 }
 
@@ -97,6 +100,8 @@ function formatDuration(durationMs: number): string {
 }
 
 function stageMessage(job: OcrJob): string {
+  if (job.status === "pausing") return message("ocrPausing");
+  if (job.status === "paused") return message("ocrPaused");
   if (job.status === "completed") return message("ocrCompleted");
   if (job.status === "canceled") return message("ocrCanceled");
   if (job.status === "error") return message("ocrFailed", job.error || "Unknown error");
@@ -129,6 +134,12 @@ function renderOcrProgress(job: OcrJob): void {
   const durations = liveStageDurations(job, now);
 
   ocrProgressPanel.hidden = false;
+  statusPanel.hidden = true;
+  ocrProgressPanel.classList.toggle(
+    "is-paused",
+    job.status === "pausing" || job.status === "paused"
+  );
+  ocrProgressPanel.classList.toggle("is-error", job.status === "error");
   ocrStageText.textContent = stageMessage(job);
   ocrProgressValue.textContent = `${progress}%`;
   ocrProgressBar.style.width = `${progress}%`;
@@ -140,7 +151,9 @@ function renderOcrProgress(job: OcrJob): void {
   );
   ocrElapsed.textContent = message("ocrElapsed", formatDuration(elapsedMs));
   ocrRemaining.textContent =
-    job.status !== "running" && job.status !== "canceling"
+    job.status === "pausing" || job.status === "paused"
+      ? message("ocrResumeToContinue")
+      : job.status !== "running" && job.status !== "canceling"
       ? message("ocrFinishedIn", formatDuration(elapsedMs))
       : remainingMs === undefined
         ? message("ocrEstimating")
@@ -179,6 +192,13 @@ function renderOcrProgress(job: OcrJob): void {
       return item;
     })
   );
+  const controllable = ["running", "pausing", "paused"].includes(job.status);
+  pauseOcrButton.hidden = !controllable;
+  stopOcrButton.hidden = !controllable;
+  pauseOcrButton.textContent =
+    job.status === "pausing" || job.status === "paused"
+      ? message("resumeOcr")
+      : message("pauseOcr");
 }
 
 function applyJob(job: OcrJob): void {
@@ -186,24 +206,12 @@ function applyJob(job: OcrJob): void {
   currentJob = job;
   note = applyOcrResults(note, job.results);
   renderPreview();
-  renderOcrProgress(job);
-  switch (job.status) {
-    case "running":
-      setStatus(stageMessage(job), "working");
-      break;
-    case "canceling":
-      setStatus(message("canceling"), "working");
-      break;
-    case "completed":
-      setStatus(message("ocrCompleted"), "success");
-      break;
-    case "canceled":
-      setStatus(message("ocrCanceled"), "neutral");
-      break;
-    case "error":
-      setStatus(message("ocrFailed", job.error || "Unknown error"), "error");
-      break;
+  if (!ocrToggle.checked) {
+    ocrProgressPanel.hidden = true;
+    statusPanel.hidden = false;
+    return;
   }
+  renderOcrProgress(job);
 }
 
 async function restoreOrStartOcr(): Promise<void> {
@@ -215,7 +223,11 @@ async function restoreOrStartOcr(): Promise<void> {
   }
   const stored = await chrome.storage.local.get(OCR_JOB_KEY);
   const job = stored[OCR_JOB_KEY] as OcrJob | undefined;
-  if (job && sameJobSource(job, note) && ["running", "canceling", "completed"].includes(job.status)) {
+  if (
+    job &&
+    sameJobSource(job, note) &&
+    ["running", "pausing", "paused", "canceling", "completed"].includes(job.status)
+  ) {
     applyJob(job);
     return;
   }
@@ -311,9 +323,9 @@ async function handleOcrToggle(): Promise<void> {
   if (
     isExtensionRuntime() &&
     currentJob &&
-    (currentJob.status === "running" || currentJob.status === "canceling")
+    ["running", "pausing", "paused", "canceling"].includes(currentJob.status)
   ) {
-    setStatus(message("canceling"), "working");
+    setStatus(message("ready"), "success");
     const request: BackgroundRequest = {
       target: "background",
       type: "CANCEL_OCR",
@@ -322,6 +334,51 @@ async function handleOcrToggle(): Promise<void> {
     await chrome.runtime.sendMessage(request);
   } else if (note) {
     setStatus(message("ready"), "success");
+  }
+}
+
+async function handlePauseOcr(): Promise<void> {
+  if (!currentJob || !["running", "pausing", "paused"].includes(currentJob.status)) return;
+  pauseOcrButton.disabled = true;
+  try {
+    const request: BackgroundRequest = {
+      target: "background",
+      type: currentJob.status === "running" ? "PAUSE_OCR" : "RESUME_OCR",
+      jobId: currentJob.id
+    };
+    const response = (await chrome.runtime.sendMessage(request)) as OcrJob | { error: string };
+    if ("error" in response) {
+      setStatus(message("ocrFailed", response.error), "error");
+      return;
+    }
+    applyJob(response);
+  } finally {
+    pauseOcrButton.disabled = false;
+  }
+}
+
+async function handleStopOcr(): Promise<void> {
+  if (!currentJob || !["running", "pausing", "paused"].includes(currentJob.status)) return;
+  stopOcrButton.disabled = true;
+  try {
+    const request: BackgroundRequest = {
+      target: "background",
+      type: "CANCEL_OCR",
+      jobId: currentJob.id
+    };
+    const response = (await chrome.runtime.sendMessage(request)) as OcrJob | { error: string };
+    if ("error" in response) {
+      setStatus(message("ocrFailed", response.error), "error");
+      return;
+    }
+    ocrToggle.checked = false;
+    await chrome.storage.local.set({ [OCR_ENABLED_KEY]: false });
+    previewDirty = false;
+    renderPreview(true);
+    applyJob(response);
+    setStatus(message("ready"), "success");
+  } finally {
+    stopOcrButton.disabled = false;
   }
 }
 
@@ -380,6 +437,8 @@ async function initialize(): Promise<void> {
   refreshButton.addEventListener("click", () => void capturePage());
   copyButton.addEventListener("click", () => void copyMarkdown());
   downloadButton.addEventListener("click", () => void downloadMarkdown());
+  pauseOcrButton.addEventListener("click", () => void handlePauseOcr());
+  stopOcrButton.addEventListener("click", () => void handleStopOcr());
   preview.addEventListener("input", () => {
     previewDirty = true;
   });

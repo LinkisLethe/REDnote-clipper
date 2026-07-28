@@ -56,13 +56,14 @@ async function notifyPopup(job: OcrJob): Promise<void> {
 
 async function startOcr(note: Note): Promise<OcrJob> {
   const previous = await getJob();
-  if (previous?.status === "running" || previous?.status === "canceling") {
+  if (previous && ["running", "pausing", "paused", "canceling"].includes(previous.status)) {
     try {
       await ensureOffscreenDocument();
       const cancel: OffscreenRequest = {
         target: "offscreen",
         type: "CANCEL_OCR",
-        jobId: previous.id
+        jobId: previous.id,
+        abortInitialization: false
       };
       await chrome.runtime.sendMessage(cancel);
     } catch {
@@ -102,6 +103,7 @@ async function updateStage(
 ): Promise<OcrJob | undefined> {
   const job = await getJob();
   if (!job || job.id !== message.jobId) return undefined;
+  if (["completed", "canceled", "error"].includes(job.status)) return job;
   const updated: OcrJob = {
     ...job,
     stage: message.stage,
@@ -122,16 +124,72 @@ async function updateStage(
 
 async function cancelOcr(jobId: string): Promise<OcrJob | undefined> {
   const job = await getJob();
-  if (!job || job.id !== jobId || job.status !== "running") return job;
+  if (!job || job.id !== jobId || !["running", "pausing", "paused"].includes(job.status)) {
+    return job;
+  }
   const updated: OcrJob = {
     ...job,
-    status: "canceling",
+    status: "canceled",
+    durationMs: Math.max(
+      0,
+      Date.now() - (Date.parse(job.startedAt || job.updatedAt) || Date.now())
+    ),
     updatedAt: new Date().toISOString()
   };
   await saveJob(updated);
   await notifyPopup(updated);
   await ensureOffscreenDocument();
-  const request: OffscreenRequest = { target: "offscreen", type: "CANCEL_OCR", jobId };
+  const request: OffscreenRequest = {
+    target: "offscreen",
+    type: "CANCEL_OCR",
+    jobId,
+    abortInitialization: true
+  };
+  await chrome.runtime.sendMessage(request);
+  return updated;
+}
+
+async function pauseOcr(jobId: string): Promise<OcrJob | undefined> {
+  const job = await getJob();
+  if (!job || job.id !== jobId || job.status !== "running") return job;
+  const updated: OcrJob = {
+    ...job,
+    status: "pausing",
+    updatedAt: new Date().toISOString()
+  };
+  await saveJob(updated);
+  await notifyPopup(updated);
+  await ensureOffscreenDocument();
+  const request: OffscreenRequest = { target: "offscreen", type: "PAUSE_OCR", jobId };
+  await chrome.runtime.sendMessage(request);
+  return updated;
+}
+
+async function markPaused(jobId: string): Promise<OcrJob | undefined> {
+  const job = await getJob();
+  if (!job || job.id !== jobId || job.status !== "pausing") return job;
+  const updated: OcrJob = {
+    ...job,
+    status: "paused",
+    updatedAt: new Date().toISOString()
+  };
+  await saveJob(updated);
+  await notifyPopup(updated);
+  return updated;
+}
+
+async function resumeOcr(jobId: string): Promise<OcrJob | undefined> {
+  const job = await getJob();
+  if (!job || job.id !== jobId || !["pausing", "paused"].includes(job.status)) return job;
+  const updated: OcrJob = {
+    ...job,
+    status: "running",
+    updatedAt: new Date().toISOString()
+  };
+  await saveJob(updated);
+  await notifyPopup(updated);
+  await ensureOffscreenDocument();
+  const request: OffscreenRequest = { target: "offscreen", type: "RESUME_OCR", jobId };
   await chrome.runtime.sendMessage(request);
   return updated;
 }
@@ -141,6 +199,7 @@ async function updateProgress(
 ): Promise<OcrJob | undefined> {
   const job = await getJob();
   if (!job || job.id !== message.jobId) return undefined;
+  if (["completed", "canceled", "error"].includes(job.status)) return job;
   const results = [...job.results];
   results[message.result.imageIndex] = message.result;
   const updated: OcrJob = {
@@ -165,12 +224,13 @@ async function finishOcr(
 ): Promise<OcrJob | undefined> {
   const job = await getJob();
   if (!job || job.id !== message.jobId) return undefined;
+  const finalStatus = job.status === "canceled" ? "canceled" : message.status;
   const updated: OcrJob = {
     ...job,
-    status: message.status,
-    error: message.error,
-    current: message.status === "completed" ? job.total : job.current,
-    progress: message.status === "completed" ? 100 : job.progress,
+    status: finalStatus,
+    error: finalStatus === "canceled" ? undefined : message.error,
+    current: finalStatus === "completed" ? job.total : job.current,
+    progress: finalStatus === "completed" ? 100 : job.progress,
     durationMs:
       message.durationMs ??
       Math.max(0, Date.now() - (Date.parse(job.startedAt || job.updatedAt) || Date.now())),
@@ -194,6 +254,21 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     case "CANCEL_OCR":
       operation = cancelOcr(
         (request as Extract<BackgroundRequest, { type: "CANCEL_OCR" }>).jobId
+      );
+      break;
+    case "PAUSE_OCR":
+      operation = pauseOcr(
+        (request as Extract<BackgroundRequest, { type: "PAUSE_OCR" }>).jobId
+      );
+      break;
+    case "RESUME_OCR":
+      operation = resumeOcr(
+        (request as Extract<BackgroundRequest, { type: "RESUME_OCR" }>).jobId
+      );
+      break;
+    case "OCR_PAUSED":
+      operation = markPaused(
+        (request as Extract<BackgroundRequest, { type: "OCR_PAUSED" }>).jobId
       );
       break;
     case "OCR_PROGRESS":

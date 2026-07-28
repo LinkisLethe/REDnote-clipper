@@ -17,7 +17,7 @@ XHS Clipper is a Chrome Manifest V3 extension that exports the current Xiaohongs
 5. Open a Xiaohongshu image post and wait for the page to finish loading.
 6. Open the extension, review the Markdown preview, and select `Download .md`.
 
-OCR is disabled by default. The first OCR run downloads about 31 MB of PaddleOCR models; later runs use the browser cache. The progress card shows model download, engine initialization, per-image recognition, text combining, elapsed time, and an estimated remaining time. Images are processed locally. A failed image does not stop the remaining images, and long images are split before their OCR text is merged in the original order.
+OCR is disabled by default. The first OCR run downloads about 31 MB of PaddleOCR models; later runs use the browser cache. The progress card shows model download, engine initialization, per-image recognition, text combining, elapsed time, and an estimated remaining time. OCR can be paused between images or stopped immediately. A cache read that takes too long fails instead of leaving the popup waiting indefinitely. Images are processed locally. A failed image does not stop the remaining images, and long images are split before their OCR text is merged in the original order.
 
 A regular image usually takes about 5 to 15 seconds on a recent desktop. Long screenshots can take tens of seconds because they are split into several tiles. A full VPN can slow the initial model and Xiaohongshu image downloads when it routes traffic away from mainland China; the local OCR and progress display are unaffected once the required files are available.
 

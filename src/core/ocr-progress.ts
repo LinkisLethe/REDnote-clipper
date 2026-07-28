@@ -14,7 +14,7 @@ export function liveStageDurations(
   now = Date.now()
 ): OcrStageDurations {
   const durations = { ...(job.stageDurations || {}) };
-  if (job.status === "running" || job.status === "canceling") {
+  if (job.status === "running" || job.status === "pausing" || job.status === "canceling") {
     const liveDuration = Math.max(0, now - timestamp(job.stageStartedAt));
     durations[job.stage] = (durations[job.stage] || 0) + liveDuration;
   }
@@ -22,7 +22,8 @@ export function liveStageDurations(
 }
 
 export function estimateRemainingMs(job: OcrJob, now = Date.now()): number | undefined {
-  if (job.status !== "running" && job.status !== "canceling") return 0;
+  if (job.status === "paused") return undefined;
+  if (!["running", "pausing", "canceling"].includes(job.status)) return 0;
   const stageElapsed = Math.max(0, now - timestamp(job.stageStartedAt));
   const completedDurations = job.results
     .map((result) => result?.durationMs)

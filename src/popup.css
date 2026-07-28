@@ -337,6 +337,42 @@ h1 {
   font-variant-numeric: tabular-nums;
 }
 
+.ocr-progress-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.ocr-action-button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #d9d1ca;
+  border-radius: 8px;
+  background: #fff;
+  color: #625a54;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.ocr-action-button:hover:not(:disabled) {
+  background: #f7f2ed;
+}
+
+.ocr-action-button.is-danger {
+  border-color: rgba(200, 66, 58, 0.28);
+  color: #b53a33;
+}
+
+.ocr-progress-card.is-paused .ocr-progress-bar {
+  background: #b18a53;
+}
+
+.ocr-progress-card.is-error .ocr-progress-bar {
+  background: #c8423a;
+}
+
 .preview-card {
   display: flex;
   min-height: 0;

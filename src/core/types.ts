@@ -60,7 +60,14 @@ export interface OcrJob {
   id: string;
   noteId: string;
   imageUrls: string[];
-  status: "running" | "completed" | "canceling" | "canceled" | "error";
+  status:
+    | "running"
+    | "pausing"
+    | "paused"
+    | "completed"
+    | "canceling"
+    | "canceled"
+    | "error";
   current: number;
   total: number;
   results: Array<OcrImageResult | null>;
@@ -82,6 +89,9 @@ export interface OcrJob {
 export type BackgroundRequest =
   | { target: "background"; type: "RUN_OCR"; note: Note }
   | { target: "background"; type: "CANCEL_OCR"; jobId: string }
+  | { target: "background"; type: "PAUSE_OCR"; jobId: string }
+  | { target: "background"; type: "RESUME_OCR"; jobId: string }
+  | { target: "background"; type: "OCR_PAUSED"; jobId: string }
   | {
       target: "background";
       type: "OCR_STAGE_PROGRESS";
@@ -121,7 +131,14 @@ export type OffscreenRequest =
       jobId: string;
       imageUrls: string[];
     }
-  | { target: "offscreen"; type: "CANCEL_OCR"; jobId: string };
+  | {
+      target: "offscreen";
+      type: "CANCEL_OCR";
+      jobId: string;
+      abortInitialization?: boolean;
+    }
+  | { target: "offscreen"; type: "PAUSE_OCR"; jobId: string }
+  | { target: "offscreen"; type: "RESUME_OCR"; jobId: string };
 
 export interface PopupJobUpdate {
   target: "popup";

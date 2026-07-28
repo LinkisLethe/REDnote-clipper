@@ -29,6 +29,7 @@ const MODEL_SIZES: Record<string, number> = {
   [MODEL_URLS.recognition]: 21_319_680
 };
 const MODEL_DOWNLOAD_TIMEOUT_MS = 120_000;
+const MODEL_CACHE_TIMEOUT_MS = 10_000;
 
 function modelSize(url: string): number {
   return MODEL_SIZES[url] ?? 0;
@@ -37,9 +38,13 @@ function modelSize(url: string): number {
 type OcrInstance = Awaited<ReturnType<typeof PaddleOCR.create>>;
 let instancePromise: Promise<OcrInstance> | null = null;
 let instanceReady = false;
-let processingQueue = Promise.resolve();
+let recognitionQueue = Promise.resolve();
 const canceledJobs = new Set<string>();
+const pausedJobs = new Set<string>();
+const resumeWaiters = new Map<string, () => void>();
 const modelObjectUrls: string[] = [];
+const modelDownloadControllers = new Set<AbortController>();
+const imageDownloadControllers = new Map<string, AbortController>();
 
 interface StageExtras {
   currentImage?: number;
@@ -55,12 +60,49 @@ type StageReporter = (
   extras?: StageExtras
 ) => Promise<void>;
 
+interface InitializationState {
+  stage: OcrStage;
+  progress: number;
+  extras?: StageExtras;
+}
+
+const initializationSubscribers = new Map<string, StageReporter>();
+let initializationState: InitializationState | null = null;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
+
+async function reportInitialization(
+  stage: OcrStage,
+  progress: number,
+  extras?: StageExtras
+): Promise<void> {
+  initializationState = { stage, progress, extras };
+  await Promise.all(
+    [...initializationSubscribers.values()].map((report) =>
+      report(stage, progress, extras).catch(() => undefined)
+    )
+  );
+}
+
 async function downloadModel(
   cache: Cache,
   url: string,
   onProgress: (loaded: number, total: number) => void
-): Promise<Response> {
+): Promise<Blob> {
   const controller = new AbortController();
+  modelDownloadControllers.add(controller);
   const timeout = setTimeout(() => controller.abort(), MODEL_DOWNLOAD_TIMEOUT_MS);
   try {
     const downloaded = await fetch(url, { signal: controller.signal });
@@ -75,8 +117,16 @@ async function downloadModel(
       const stored = new Response(blob, {
         headers: { "content-type": downloaded.headers.get("content-type") || "application/octet-stream" }
       });
-      await cache.put(url, stored.clone());
-      return stored;
+      try {
+        await withTimeout(
+          cache.put(url, stored.clone()),
+          MODEL_CACHE_TIMEOUT_MS,
+          "Saving the OCR model cache timed out."
+        );
+      } catch {
+        // The downloaded model can still be used for this run.
+      }
+      return blob;
     }
 
     const reader = downloaded.body.getReader();
@@ -93,9 +143,17 @@ async function downloadModel(
       type: downloaded.headers.get("content-type") || "application/octet-stream"
     });
     const stored = new Response(blob);
-    await cache.put(url, stored.clone());
+    try {
+      await withTimeout(
+        cache.put(url, stored.clone()),
+        MODEL_CACHE_TIMEOUT_MS,
+        "Saving the OCR model cache timed out."
+      );
+    } catch {
+      // The downloaded model can still be used for this run.
+    }
     onProgress(blob.size, total || blob.size);
-    return stored;
+    return blob;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error("OCR model download timed out after 120 seconds.");
@@ -103,13 +161,56 @@ async function downloadModel(
     throw error;
   } finally {
     clearTimeout(timeout);
+    modelDownloadControllers.delete(controller);
   }
 }
 
 async function cachedModelObjectUrls(report: StageReporter): Promise<[string, string]> {
-  const cache = await caches.open(MODEL_CACHE);
+  let cache = await withTimeout(
+    caches.open(MODEL_CACHE),
+    MODEL_CACHE_TIMEOUT_MS,
+    "Opening the OCR model cache timed out."
+  );
   const urls = [MODEL_URLS.detection, MODEL_URLS.recognition] as const;
-  const cached = await Promise.all(urls.map((url) => cache.match(url)));
+  let cachedResponses: Array<Response | undefined>;
+  try {
+    cachedResponses = await withTimeout(
+      Promise.all(urls.map((url) => cache.match(url))),
+      MODEL_CACHE_TIMEOUT_MS,
+      "Reading the OCR model cache timed out."
+    );
+  } catch {
+    await caches.delete(MODEL_CACHE);
+    cache = await withTimeout(
+      caches.open(MODEL_CACHE),
+      MODEL_CACHE_TIMEOUT_MS,
+      "Resetting the OCR model cache timed out."
+    );
+    cachedResponses = [undefined, undefined];
+  }
+
+  const cached = await Promise.all(
+    cachedResponses.map(async (response, index) => {
+      if (!response) return undefined;
+      const url = urls[index];
+      if (!url) return undefined;
+      try {
+        const blob = await withTimeout(
+          response.blob(),
+          MODEL_CACHE_TIMEOUT_MS,
+          "Loading a cached OCR model timed out."
+        );
+        if (blob.size < modelSize(url) * 0.9) {
+          await cache.delete(url);
+          return undefined;
+        }
+        return blob;
+      } catch {
+        await cache.delete(url);
+        return undefined;
+      }
+    })
+  );
   const loadedByUrl = new Map<string, number>();
   const totalBytes = urls.reduce((sum, url) => sum + modelSize(url), 0);
   urls.forEach((url, index) => {
@@ -141,7 +242,7 @@ async function cachedModelObjectUrls(report: StageReporter): Promise<[string, st
     );
   };
 
-  const responses = await Promise.all(
+  const blobs = await Promise.all(
     urls.map(async (url, index) => {
       const hit = cached[index];
       if (hit) return hit;
@@ -151,8 +252,8 @@ async function cachedModelObjectUrls(report: StageReporter): Promise<[string, st
   await reporting;
 
   const objectUrls = await Promise.all(
-    responses.map(async (response) => {
-      const objectUrl = URL.createObjectURL(await response.blob());
+    blobs.map(async (blob) => {
+      const objectUrl = URL.createObjectURL(blob);
       modelObjectUrls.push(objectUrl);
       return objectUrl;
     })
@@ -160,12 +261,20 @@ async function cachedModelObjectUrls(report: StageReporter): Promise<[string, st
   return objectUrls as [string, string];
 }
 
-async function getOcrInstance(report: StageReporter): Promise<OcrInstance> {
+async function getOcrInstance(jobId: string, report: StageReporter): Promise<OcrInstance> {
   if (instanceReady && instancePromise) return instancePromise;
+  initializationSubscribers.set(jobId, report);
+  if (initializationState) {
+    await report(
+      initializationState.stage,
+      initializationState.progress,
+      initializationState.extras
+    );
+  }
   if (!instancePromise) {
     instancePromise = (async () => {
-      const [detectionUrl, recognitionUrl] = await cachedModelObjectUrls(report);
-      await report("initializing-engine", 45);
+      const [detectionUrl, recognitionUrl] = await cachedModelObjectUrls(reportInitialization);
+      await reportInitialization("initializing-engine", 45);
       const instance = await PaddleOCR.create({
         textDetectionModelName: "PP-OCRv6_small_det",
         textDetectionModelAsset: { url: detectionUrl },
@@ -185,15 +294,22 @@ async function getOcrInstance(report: StageReporter): Promise<OcrInstance> {
         textRecognitionBatchSize: 8
       });
       instanceReady = true;
+      initializationState = null;
       return instance;
-    })().catch((error) => {
+    })().catch(async (error) => {
       instancePromise = null;
       instanceReady = false;
+      initializationState = null;
+      await caches.delete(MODEL_CACHE);
       for (const url of modelObjectUrls.splice(0)) URL.revokeObjectURL(url);
       throw error;
     });
   }
-  return instancePromise;
+  try {
+    return await instancePromise;
+  } finally {
+    initializationSubscribers.delete(jobId);
+  }
 }
 
 interface ImageTile {
@@ -262,11 +378,15 @@ function dedupeAdjacentLines(lines: OcrLine[]): OcrLine[] {
 async function recognizeImageWithInstance(
   ocr: OcrInstance,
   url: string,
-  imageIndex: number
+  imageIndex: number,
+  jobId: string
 ): Promise<OcrImageResult> {
   const startedAt = performance.now();
+  const controller = new AbortController();
+  imageDownloadControllers.set(jobId, controller);
+  const timeout = setTimeout(() => controller.abort(), 30_000);
   try {
-    const response = await fetch(url, { credentials: "omit" });
+    const response = await fetch(url, { credentials: "omit", signal: controller.signal });
     if (!response.ok) throw new Error(`Image download failed: HTTP ${response.status}`);
     const tiles = await splitLongImage(await response.blob());
     const lines: OcrLine[] = [];
@@ -296,6 +416,9 @@ async function recognizeImageWithInstance(
       durationMs: Math.round(performance.now() - startedAt),
       error: error instanceof Error ? error.message : String(error)
     };
+  } finally {
+    clearTimeout(timeout);
+    imageDownloadControllers.delete(jobId);
   }
 }
 
@@ -347,42 +470,72 @@ function createStageTracker(jobId: string): {
   };
 }
 
+function cancelJob(jobId: string, abortInitialization: boolean): void {
+  canceledJobs.add(jobId);
+  pausedJobs.delete(jobId);
+  initializationSubscribers.delete(jobId);
+  imageDownloadControllers.get(jobId)?.abort();
+  imageDownloadControllers.delete(jobId);
+  const resume = resumeWaiters.get(jobId);
+  if (resume) resume();
+  resumeWaiters.delete(jobId);
+  if (abortInitialization && initializationSubscribers.size === 0 && !instanceReady) {
+    for (const controller of modelDownloadControllers) controller.abort();
+  }
+}
+
+function resumeJob(jobId: string): void {
+  pausedJobs.delete(jobId);
+  const resume = resumeWaiters.get(jobId);
+  if (resume) resume();
+  resumeWaiters.delete(jobId);
+}
+
+async function waitUntilResumed(jobId: string): Promise<void> {
+  if (!pausedJobs.has(jobId) || canceledJobs.has(jobId)) return;
+  await sendBackground({ target: "background", type: "OCR_PAUSED", jobId });
+  await new Promise<void>((resolve) => {
+    resumeWaiters.set(jobId, resolve);
+  });
+}
+
+async function runRecognitionQueued(operation: () => Promise<void>): Promise<void> {
+  const scheduled = recognitionQueue.then(operation, operation);
+  recognitionQueue = scheduled.catch(() => undefined);
+  await scheduled;
+}
+
 async function processJob(jobId: string, imageUrls: string[]): Promise<void> {
   const jobStartedAt = performance.now();
   const tracker = createStageTracker(jobId);
   try {
     await tracker.report("checking-cache", 2);
-    const ocr = await getOcrInstance(tracker.report);
-    for (let index = 0; index < imageUrls.length; index += 1) {
-      if (canceledJobs.has(jobId)) {
+    const ocr = await getOcrInstance(jobId, tracker.report);
+    await runRecognitionQueued(async () => {
+      for (let index = 0; index < imageUrls.length; index += 1) {
+        if (canceledJobs.has(jobId)) return;
+        await waitUntilResumed(jobId);
+        if (canceledJobs.has(jobId)) return;
+        const url = imageUrls[index];
+        if (!url) continue;
+        await tracker.report(
+          "recognizing-images",
+          50 + Math.round((index / Math.max(1, imageUrls.length)) * 45),
+          { currentImage: index + 1, currentImageStartedAt: new Date().toISOString() }
+        );
+        const result = await recognizeImageWithInstance(ocr, url, index, jobId);
+        if (canceledJobs.has(jobId)) return;
         await sendBackground({
           target: "background",
-          type: "OCR_FINISHED",
+          type: "OCR_PROGRESS",
           jobId,
-          status: "canceled",
-          durationMs: Math.round(performance.now() - jobStartedAt),
-          stageDurations: tracker.snapshot()
+          result,
+          current: index + 1,
+          total: imageUrls.length
         });
-        return;
       }
-      const url = imageUrls[index];
-      if (!url) continue;
-      await tracker.report(
-        "recognizing-images",
-        50 + Math.round((index / Math.max(1, imageUrls.length)) * 45),
-        { currentImage: index + 1, currentImageStartedAt: new Date().toISOString() }
-      );
-      const result = await recognizeImageWithInstance(ocr, url, index);
-      await sendBackground({
-        target: "background",
-        type: "OCR_PROGRESS",
-        jobId,
-        result,
-        current: index + 1,
-        total: imageUrls.length
-      });
-    }
-    await tracker.report("finalizing", 98);
+    });
+    if (!canceledJobs.has(jobId)) await tracker.report("finalizing", 98);
     await sendBackground({
       target: "background",
       type: "OCR_FINISHED",
@@ -396,13 +549,16 @@ async function processJob(jobId: string, imageUrls: string[]): Promise<void> {
       target: "background",
       type: "OCR_FINISHED",
       jobId,
-      status: "error",
+      status: canceledJobs.has(jobId) ? "canceled" : "error",
       durationMs: Math.round(performance.now() - jobStartedAt),
       stageDurations: tracker.snapshot(),
       error: error instanceof Error ? error.message : String(error)
     });
   } finally {
+    initializationSubscribers.delete(jobId);
     canceledJobs.delete(jobId);
+    pausedJobs.delete(jobId);
+    resumeWaiters.delete(jobId);
   }
 }
 
@@ -410,13 +566,24 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   const request = message as Partial<OffscreenRequest>;
   if (request.target !== "offscreen") return false;
   if (request.type === "CANCEL_OCR") {
-    canceledJobs.add((request as Extract<OffscreenRequest, { type: "CANCEL_OCR" }>).jobId);
+    const cancel = request as Extract<OffscreenRequest, { type: "CANCEL_OCR" }>;
+    cancelJob(cancel.jobId, Boolean(cancel.abortInitialization));
+    sendResponse({ accepted: true });
+    return false;
+  }
+  if (request.type === "PAUSE_OCR") {
+    pausedJobs.add((request as Extract<OffscreenRequest, { type: "PAUSE_OCR" }>).jobId);
+    sendResponse({ accepted: true });
+    return false;
+  }
+  if (request.type === "RESUME_OCR") {
+    resumeJob((request as Extract<OffscreenRequest, { type: "RESUME_OCR" }>).jobId);
     sendResponse({ accepted: true });
     return false;
   }
   if (request.type === "PROCESS_OCR") {
     const job = request as Extract<OffscreenRequest, { type: "PROCESS_OCR" }>;
-    processingQueue = processingQueue.then(() => processJob(job.jobId, job.imageUrls));
+    void processJob(job.jobId, job.imageUrls);
     sendResponse({ accepted: true });
     return false;
   }

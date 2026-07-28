@@ -50,4 +50,12 @@ describe("OCR progress estimates", () => {
   it("returns zero after completion", () => {
     expect(estimateRemainingMs(job({ status: "completed" }))).toBe(0);
   });
+
+  it("stops estimating while paused", () => {
+    const paused = job({ status: "paused" });
+    expect(estimateRemainingMs(paused)).toBeUndefined();
+    expect(liveStageDurations(paused, Date.parse("2026-07-28T00:00:09.000Z"))[
+      "recognizing-images"
+    ]).toBeUndefined();
+  });
 });

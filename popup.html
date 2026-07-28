@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rednote Markdown Collector</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <div class="brand-mark" aria-hidden="true">M</div>
+        <div class="brand-copy">
+          <h1 data-i18n="extensionName">红薯 Markdown 采集器</h1>
+          <p data-i18n="appSubtitle">当前笔记转纯文本 Markdown</p>
+        </div>
+        <button id="refreshButton" class="icon-button" type="button" data-i18n-title="refresh">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 6v5h-5M4 18v-5h5M6.1 9a7 7 0 0 1 11.5-2.6L20 9M4 15l2.4 2.6A7 7 0 0 0 17.9 15" />
+          </svg>
+        </button>
+      </header>
+
+      <section class="control-card">
+        <div class="control-row">
+          <div>
+            <label for="ocrToggle" data-i18n="ocrLabel">识别图片文字</label>
+            <p data-i18n="ocrHint">图片只在本机处理，首次使用会下载 OCR 模型。</p>
+          </div>
+          <label class="switch">
+            <input id="ocrToggle" type="checkbox" />
+            <span class="switch-track" aria-hidden="true"></span>
+          </label>
+        </div>
+      </section>
+
+      <section id="statusPanel" class="status-panel is-working" aria-live="polite">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="statusText" data-i18n="loadingPage">正在读取当前页面…</span>
+      </section>
+
+      <section class="preview-card">
+        <div class="preview-header">
+          <div>
+            <h2 data-i18n="previewTitle">Markdown 预览</h2>
+            <p id="noteMeta"></p>
+          </div>
+          <button id="copyButton" class="text-button" type="button" disabled data-i18n="copy">
+            复制
+          </button>
+        </div>
+        <textarea
+          id="markdownPreview"
+          aria-label="Markdown preview"
+          spellcheck="false"
+          placeholder="Markdown"
+        ></textarea>
+        <p class="edit-hint" data-i18n="editHint">可以直接修改预览内容，再下载。</p>
+      </section>
+
+      <footer class="app-footer">
+        <span data-i18n="languageHint">界面语言跟随 Chrome</span>
+        <button id="downloadButton" class="primary-button" type="button" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" />
+          </svg>
+          <span data-i18n="download">下载 .md</span>
+        </button>
+      </footer>
+    </main>
+    <script type="module" src="/src/popup.ts"></script>
+  </body>
+</html>

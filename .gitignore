@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.vite/
+coverage/
+.venv*/
+__pycache__/
+*.log

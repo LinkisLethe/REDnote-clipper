@@ -71,6 +71,49 @@ describe("extractXiaohongshuPage", () => {
       "https://sns-webpic-qc.xhscdn.com/dom.jpg"
     ]);
   });
+
+  it("scopes the modern note modal and reads engagement metrics", () => {
+    document.body.innerHTML = `
+      <aside><a href="/user/profile/wrong"><span class="name">Wrong author</span></a></aside>
+      <section class="note-detail-mask">
+        <div class="media-container">
+          <div class="swiper-slide"><img src="https://sns-webpic-qc.xhscdn.com/1.jpg"></div>
+          <div class="swiper-slide swiper-slide-duplicate"><img src="https://sns-webpic-qc.xhscdn.com/1.jpg"></div>
+          <div class="swiper-slide"><img src="https://sns-webpic-qc.xhscdn.com/2.jpg"></div>
+        </div>
+        <div class="author-wrapper">
+          <a class="name" href="/user/profile/u-cmu">CMU Author</a>
+        </div>
+        <main class="note-content">
+          <h1 id="detail-title">CMU title</h1>
+          <div id="detail-desc">CMU body #CMU</div>
+          <div class="bottom-container"><span class="date">06-26</span></div>
+        </main>
+        <div class="interact-container">
+          <span class="like-wrapper"><span class="count">186</span></span>
+          <span class="collect-wrapper"><span class="count">121</span></span>
+          <span class="chat-wrapper"><span class="count">11</span></span>
+        </div>
+      </section>
+    `;
+
+    const result = extractXiaohongshuPage();
+    expect(result.data).toMatchObject({
+      source: "dom",
+      authorId: "u-cmu",
+      authorName: "CMU Author",
+      publishedAt: "06-26",
+      metrics: {
+        likedCount: "186",
+        collectedCount: "121",
+        commentCount: "11"
+      }
+    });
+    expect(result.data?.imageUrls).toEqual([
+      "https://sns-webpic-qc.xhscdn.com/1.jpg",
+      "https://sns-webpic-qc.xhscdn.com/2.jpg"
+    ]);
+  });
 });
 
 describe("normalizeExtractedNote", () => {
@@ -94,5 +137,22 @@ describe("normalizeExtractedNote", () => {
     expect(normalized.publishedAt).toBe("2025-07-26T07:50:00.000Z");
     expect(normalized.capturedAt).toBe("2026-07-28T10:00:00.000Z");
     expect(normalized.cover).toBe("https://example.com/a.jpg");
+  });
+
+  it("keeps a partial visible date instead of inventing a year", () => {
+    const normalized = normalizeExtractedNote({
+      id: "1",
+      url: "https://www.xiaohongshu.com/explore/1",
+      title: "Title",
+      body: "Body",
+      authorName: "Author",
+      imageUrls: [],
+      tags: [],
+      publishedAt: "06-26",
+      metrics: {},
+      source: "dom"
+    });
+
+    expect(normalized.publishedAt).toBe("06-26");
   });
 });

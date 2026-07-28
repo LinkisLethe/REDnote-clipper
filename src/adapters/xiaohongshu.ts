@@ -38,14 +38,15 @@ export function extractXiaohongshuPage(): ExtractionResponse {
   const getMeta = (name: string): string =>
     document.querySelector<HTMLMetaElement>(`meta[property="${name}"], meta[name="${name}"]`)
       ?.content?.trim() || "";
-  const queryText = (selectors: string[]): string => {
+  const queryTextFrom = (root: ParentNode, selectors: string[]): string => {
     for (const selector of selectors) {
-      const element = document.querySelector<HTMLElement>(selector);
+      const element = root.querySelector<HTMLElement>(selector);
       const text = (element?.innerText || element?.textContent || "").trim();
       if (text) return text;
     }
     return "";
   };
+  const queryText = (selectors: string[]): string => queryTextFrom(document, selectors);
   const cleanImageUrl = (value: unknown): string => {
     const text = asText(value);
     if (!text) return "";
@@ -160,39 +161,71 @@ export function extractXiaohongshuPage(): ExtractionResponse {
     }
   }
 
-  const contentRoot =
-    document.querySelector(".note-content") ||
-    document.querySelector(".note-scroller") ||
+  const detailRoot =
+    document.querySelector(".note-detail-mask") ||
     document.querySelector("#noteContainer") ||
     document;
-  const imageElements = contentRoot.querySelectorAll<HTMLImageElement>(
-    ".swiper-slide img, .note-slider img, .carousel img, img"
+  const contentRoot =
+    detailRoot.querySelector(".note-content") ||
+    detailRoot.querySelector(".note-scroller") ||
+    detailRoot;
+  const carouselImages = detailRoot.querySelectorAll<HTMLImageElement>(
+    ".swiper-slide:not(.swiper-slide-duplicate) img"
   );
+  const imageElements = carouselImages.length > 0
+    ? carouselImages
+    : detailRoot.querySelectorAll<HTMLImageElement>(".note-slider img, .carousel img");
   const imageUrls = dedupe(
     [...imageElements]
       .filter((image) => !image.closest(".author-wrapper, .avatar, header, nav"))
       .map((image) => cleanImageUrl(image.dataset.src || image.currentSrc || image.src))
       .filter((url) => /xhscdn\.com|xiaohongshu\.com/i.test(url))
   );
-  const body = queryText(["#detail-desc", ".note-text", ".desc", ".content"])
+  const body = queryTextFrom(contentRoot, ["#detail-desc", ".note-text", ".desc", ".content"])
     || getMeta("description")
     || getMeta("og:description");
-  const rawTitle = queryText(["#detail-title", ".note-content .title", ".title"])
+  const rawTitle = queryTextFrom(contentRoot, ["#detail-title", ".note-content .title", ".title"])
     || getMeta("og:title")
     || document.title;
   const id = idFromUrl;
   if (!id || (!rawTitle && !body)) return { ok: false, error: "not-found" };
-  const authorName = queryText([
+  const authorName = queryTextFrom(detailRoot, [
     ".author-wrapper .name",
     ".author .name",
     ".username",
     "a[href*='/user/profile/']"
   ]);
-  const avatar = document.querySelector<HTMLImageElement>(
+  const authorLink = detailRoot.querySelector<HTMLAnchorElement>(
+    ".author-wrapper a[href*='/user/profile/'], a.author[href*='/user/profile/'], .info a.name[href*='/user/profile/']"
+  );
+  const authorId = authorLink?.pathname.match(/\/user\/profile\/([^/?#]+)/)?.[1] || "";
+  const avatar = detailRoot.querySelector<HTMLImageElement>(
     ".author-wrapper img, .author img, img.avatar"
   );
-  const visibleTags = [...document.querySelectorAll<HTMLElement>("a.tag, .tag-list a, #detail-desc a")]
+  const visibleTags = [...detailRoot.querySelectorAll<HTMLElement>("a.tag, .tag-list a, #detail-desc a")]
     .map((element) => (element.innerText || element.textContent || "").replace(/^#/, "").trim());
+  const metrics: NoteMetrics = {
+    likedCount: queryTextFrom(detailRoot, [
+      ".interact-container .like-wrapper .count",
+      ".engage-bar-style .like-wrapper .count",
+      ".like-wrapper .count"
+    ]),
+    collectedCount: queryTextFrom(detailRoot, [
+      ".interact-container .collect-wrapper .count",
+      ".engage-bar-style .collect-wrapper .count",
+      ".collect-wrapper .count"
+    ]),
+    commentCount: queryTextFrom(detailRoot, [
+      ".interact-container .chat-wrapper .count",
+      ".engage-bar-style .chat-wrapper .count",
+      ".chat-wrapper .count"
+    ]),
+    sharedCount: queryTextFrom(detailRoot, [
+      ".interact-container .share-wrapper .count",
+      ".engage-bar-style .share-wrapper .count",
+      ".share-wrapper .count"
+    ])
+  };
   return {
     ok: true,
     data: {
@@ -200,12 +233,13 @@ export function extractXiaohongshuPage(): ExtractionResponse {
       url: location.href,
       title: rawTitle.replace(/\s*[-_–—|]\s*小红书.*$/i, "").trim(),
       body,
+      authorId,
       authorName,
       authorAvatar: cleanImageUrl(avatar?.currentSrc || avatar?.src),
       imageUrls,
       tags: dedupe([...visibleTags, ...normalizeTags([], body)]),
-      publishedAt: queryText([".date", ".publish-time", ".bottom-container .date"]),
-      metrics: {},
+      publishedAt: queryTextFrom(contentRoot, [".date", ".publish-time", ".bottom-container .date"]),
+      metrics,
       source: "dom"
     }
   };
@@ -213,6 +247,9 @@ export function extractXiaohongshuPage(): ExtractionResponse {
 
 function toIsoDate(value?: string | number): string | undefined {
   if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "string" && /^\d{1,2}[-/.]\d{1,2}$/.test(value.trim())) {
+    return value.trim();
+  }
   if (typeof value === "number" || /^\d{10,13}$/.test(String(value))) {
     const number = Number(value);
     const milliseconds = number < 10_000_000_000 ? number * 1000 : number;

@@ -1,43 +1,49 @@
-# 红薯 Markdown 采集器
+# XHS Clipper
 
-这是一个 Chrome Manifest V3 扩展。打开一篇小红书笔记后，点击扩展即可读取标题、正文、作者、标签、互动数据和图片顺序，并导出一个纯文本 Markdown 文件。图片不会写入文件；只有打开 OCR 开关时，扩展才会识别图片文字。
+[![Chrome](https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&logoColor=white&style=flat-square)](https://www.google.com/chrome/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
+[![OCR](https://img.shields.io/badge/OCR-PP--OCRv6-0C7BDC?style=flat-square)](https://github.com/PaddlePaddle/PaddleOCR)
 
-## 直接使用
+[中文说明](README.zh-CN.md)
 
-1. 打开 `chrome://extensions/`。
-2. 打开右上角“开发者模式”。
-3. 点击“加载已解压的扩展程序”。
-4. 选择本项目的 `dist` 文件夹。
-5. 打开一篇小红书笔记，等页面内容显示完整后点击扩展图标。
-6. 检查或修改 Markdown 预览，然后点击“下载 .md”。
+XHS Clipper is a Chrome Manifest V3 extension that exports the current Xiaohongshu post as a plain-text Markdown file. It collects the title, body, author, tags, engagement data, and image order. Optional local OCR can add text found inside images without embedding or packaging the image files.
 
-OCR 默认关闭。首次打开 OCR 时会下载 PaddleOCR 模型，之后从本机缓存读取。图片在浏览器本地处理，不会上传到我们的服务器。单张图片失败不会阻断其他图片；长图会先切块，再按原顺序合并文字。
+## Use the extension
 
-界面支持简体中文和英文，默认跟随 Chrome 的界面语言。Markdown 的 YAML 字段固定使用英文，正文和 OCR 原文不会自动翻译。
+1. Open `chrome://extensions/`.
+2. Enable Developer mode.
+3. Select `Load unpacked`.
+4. Choose this project's `dist` directory.
+5. Open a Xiaohongshu image post and wait for the page to finish loading.
+6. Open the extension, review the Markdown preview, and select `Download .md`.
 
-## 当前范围
+OCR is disabled by default. The first OCR run downloads the PaddleOCR model; later runs use the browser cache. Images are processed locally. A failed image does not stop the remaining images, and long images are split before their OCR text is merged in the original order.
 
-- 支持当前打开的小红书图文笔记。
-- 优先读取页面结构化数据，失败时退回 DOM 提取。
-- 支持 Markdown 预览、手动编辑、复制和下载。
-- 支持可选的 PP-OCRv6 Small 浏览器本地 OCR。
-- 暂不支持评论、批量采集、博主关键词搜索、图片文件导出和 Obsidian 写入。
+The interface supports Simplified Chinese and English and follows Chrome's display language. YAML field names remain in English. Post content and OCR output are not translated.
 
-小红书页面改版后，部分字段可能临时失效。遇到问题时请保留笔记链接，并说明缺少的是标题、正文、图片还是 OCR 文字。
+## Current scope
 
-## 本地开发
+- Collect the currently open Xiaohongshu image post.
+- Prefer structured page data and fall back to DOM extraction.
+- Preview, edit, copy, and download plain-text Markdown.
+- Run optional PP-OCRv6 Small OCR in the browser.
+- Exclude comments, batch collection, creator keyword search, image export, and Obsidian integration for now.
 
-需要 Node.js 20 以上版本和 pnpm。
+Xiaohongshu page changes may temporarily break individual fields. When reporting a problem, keep the post URL and note whether the missing part is the title, body, images, or OCR text.
+
+## Development
+
+Node.js 20 or newer and pnpm are required.
 
 ```bash
 pnpm install
 pnpm verify
 ```
 
-构建结果在 `dist`。Chrome 116 及以上版本可直接加载该目录。
+The production build is written to `dist`. Chrome 116 or newer can load that directory directly.
 
-需要单独检查浏览器 OCR 时，运行 `pnpm dev`，再打开 `http://127.0.0.1:5173/tests/browser/ocr-smoke.html`。页面显示 `Passed` 代表中英混排识别、Worker 和本地 WASM 均正常。
+To check OCR separately, run `pnpm dev` and open `http://127.0.0.1:5173/tests/browser/ocr-smoke.html`. A `Passed` result verifies mixed Chinese and English recognition, the worker, and the local WASM runtime.
 
-核心模块分为 `SourceAdapter`、`OcrEngine` 和 `Exporter`。以后增加博主与关键词搜索、网页管理端或 Skill 入口时，可以继续复用相同的 `Note` 数据结构和 Markdown 导出逻辑。
+The core modules are separated into `SourceAdapter`, `OcrEngine`, and `Exporter`. Future creator search, keyword filtering, a web interface, or a Skill entry point can reuse the same `Note` data model and Markdown exporter.
 
-OCR 使用 Apache-2.0 许可的 `@paddleocr/paddleocr-js`。本项目参考了 Obsidian Web Clipper、Bilibili Obsidian Clipper、ChatGPT Exporter、xiaohongshu-mcp 和 xiaohongshu-skills 的产品流程或数据结构，没有直接复制其业务代码。
+OCR uses the Apache-2.0 licensed `@paddleocr/paddleocr-js` package. Product flow and data-structure references include Obsidian Web Clipper, Bilibili Obsidian Clipper, ChatGPT Exporter, xiaohongshu-mcp, and xiaohongshu-skills. No business code was copied from those projects.

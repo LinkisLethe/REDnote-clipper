@@ -87,12 +87,7 @@ export interface OcrJob {
 }
 
 export type BackgroundRequest =
-  | {
-      target: "background";
-      type: "RUN_OCR";
-      note: Note;
-      bypassModelCache?: boolean;
-    }
+  | { target: "background"; type: "RUN_OCR"; note: Note }
   | { target: "background"; type: "RESTORE_OR_RUN_OCR"; note: Note }
   | { target: "background"; type: "CANCEL_OCR"; jobId: string }
   | { target: "background"; type: "PAUSE_OCR"; jobId: string }
@@ -136,7 +131,6 @@ export type OffscreenRequest =
       type: "PROCESS_OCR";
       jobId: string;
       imageUrls: string[];
-      bypassModelCache?: boolean;
     }
   | {
       target: "offscreen";

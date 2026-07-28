@@ -365,16 +365,6 @@ h1 {
   color: #b53a33;
 }
 
-.ocr-action-button.is-primary {
-  border-color: #c8423a;
-  background: #c8423a;
-  color: #fff;
-}
-
-.ocr-action-button.is-primary:hover:not(:disabled) {
-  background: #ad352f;
-}
-
 .ocr-progress-card.is-paused .ocr-progress-bar {
   background: #b18a53;
 }

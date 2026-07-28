@@ -24,7 +24,7 @@
         <div class="control-row">
           <div>
             <label for="ocrToggle" data-i18n="ocrLabel">识别图片文字</label>
-            <p data-i18n="ocrHint">图片只在本机处理，首次使用会下载 OCR 模型。</p>
+            <p data-i18n="ocrHint">OCR 模型已内置，图片只在本机处理。</p>
           </div>
           <label class="switch">
             <input id="ocrToggle" type="checkbox" />
@@ -60,9 +60,6 @@
         <p id="ocrProgressDetail" class="ocr-progress-detail"></p>
         <div id="ocrStepTimings" class="ocr-step-timings"></div>
         <div class="ocr-progress-actions">
-          <button id="directModelDownloadButton" class="ocr-action-button is-primary" type="button" data-i18n="directModelDownload">
-            Direct model download
-          </button>
           <button id="pauseOcrButton" class="ocr-action-button" type="button" data-i18n="pauseOcr">
             暂停
           </button>

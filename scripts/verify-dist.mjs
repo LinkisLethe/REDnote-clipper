@@ -8,6 +8,8 @@ const requiredFiles = [
   "popup.html",
   "offscreen.html",
   "assets/background.js",
+  "models/PP-OCRv6_small_det_onnx_infer.tar",
+  "models/PP-OCRv6_small_rec_onnx_infer.tar",
   "_locales/zh_CN/messages.json",
   "_locales/en/messages.json"
 ];
@@ -24,6 +26,9 @@ if (manifest.background?.service_worker !== "assets/background.js") {
 }
 if (!manifest.permissions?.includes("offscreen") || !manifest.permissions?.includes("downloads")) {
   throw new Error("Required Chrome permissions are missing");
+}
+if (manifest.host_permissions?.some((entry) => entry.includes("paddle-model-ecology"))) {
+  throw new Error("Bundled OCR must not require the remote Paddle model host");
 }
 
 const localeFiles = ["zh_CN", "en"].map((locale) =>
@@ -60,7 +65,15 @@ if (/\<script[^>]+src=["']https?:/i.test(`${popupHtml}\n${offscreenHtml}`)) {
 const totalBytes = (
   await Promise.all(runtimeAssets.map(async (file) => (await stat(resolve(dist, "assets", file))).size))
 ).reduce((sum, size) => sum + size, 0);
+const modelFiles = [
+  "PP-OCRv6_small_det_onnx_infer.tar",
+  "PP-OCRv6_small_rec_onnx_infer.tar"
+];
+const modelBytes = (
+  await Promise.all(modelFiles.map(async (file) => (await stat(resolve(dist, "models", file))).size))
+).reduce((sum, size) => sum + size, 0);
+if (modelBytes < 30_000_000) throw new Error("Bundled OCR model files are incomplete");
 
 console.log(
-  `Verified MV3 build, ${zhKeys.length} bilingual messages, ${runtimeAssets.length} OCR runtime assets, ${(totalBytes / 1024 / 1024).toFixed(1)} MiB local ORT runtime.`
+  `Verified MV3 build, ${zhKeys.length} bilingual messages, ${runtimeAssets.length} OCR runtime assets, ${(totalBytes / 1024 / 1024).toFixed(1)} MiB local ORT runtime, ${(modelBytes / 1024 / 1024).toFixed(1)} MiB bundled OCR models.`
 );

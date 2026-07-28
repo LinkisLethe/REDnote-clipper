@@ -32,9 +32,6 @@ const ocrElapsed = document.querySelector<HTMLElement>("#ocrElapsed")!;
 const ocrRemaining = document.querySelector<HTMLElement>("#ocrRemaining")!;
 const ocrProgressDetail = document.querySelector<HTMLElement>("#ocrProgressDetail")!;
 const ocrStepTimings = document.querySelector<HTMLElement>("#ocrStepTimings")!;
-const directModelDownloadButton = document.querySelector<HTMLButtonElement>(
-  "#directModelDownloadButton"
-)!;
 const pauseOcrButton = document.querySelector<HTMLButtonElement>("#pauseOcrButton")!;
 const stopOcrButton = document.querySelector<HTMLButtonElement>("#stopOcrButton")!;
 const noteMeta = document.querySelector<HTMLElement>("#noteMeta")!;
@@ -175,8 +172,6 @@ function renderOcrProgress(job: OcrJob): void {
   }
 
   const timingLabels = [
-    ["checking-cache", "ocrTimeCache"],
-    ["downloading-models", "ocrTimeDownload"],
     ["initializing-engine", "ocrTimeInitialize"],
     ["recognizing-images", "ocrTimeRecognize"],
     ["finalizing", "ocrTimeFinalize"]
@@ -189,9 +184,6 @@ function renderOcrProgress(job: OcrJob): void {
     })
   );
   const controllable = ["running", "pausing", "paused"].includes(job.status);
-  directModelDownloadButton.hidden = !(
-    controllable && job.stage === "checking-cache"
-  );
   pauseOcrButton.hidden = !(
     controllable && job.stage === "recognizing-images"
   );
@@ -358,31 +350,6 @@ async function handlePauseOcr(): Promise<void> {
   }
 }
 
-async function handleDirectModelDownload(): Promise<void> {
-  if (!note) return;
-  directModelDownloadButton.disabled = true;
-  try {
-    ocrToggle.checked = true;
-    await chrome.storage.local.set({ [OCR_ENABLED_KEY]: true });
-    ocrProgressPanel.hidden = true;
-    setStatus(message("directModelDownloadStarting"), "working");
-    const request: BackgroundRequest = {
-      target: "background",
-      type: "RUN_OCR",
-      note,
-      bypassModelCache: true
-    };
-    const response = (await chrome.runtime.sendMessage(request)) as OcrJob | { error: string };
-    if ("error" in response) {
-      setStatus(message("ocrFailed", response.error), "error");
-      return;
-    }
-    applyJob(response);
-  } finally {
-    directModelDownloadButton.disabled = false;
-  }
-}
-
 async function handleStopOcr(): Promise<void> {
   if (!currentJob || !["running", "pausing", "paused"].includes(currentJob.status)) return;
   stopOcrButton.disabled = true;
@@ -467,10 +434,6 @@ async function initialize(): Promise<void> {
   copyButton.addEventListener("click", () => void copyMarkdown());
   downloadButton.addEventListener("click", () => void downloadMarkdown());
   pauseOcrButton.addEventListener("click", () => void handlePauseOcr());
-  directModelDownloadButton.addEventListener(
-    "click",
-    () => void handleDirectModelDownload()
-  );
   stopOcrButton.addEventListener("click", () => void handleStopOcr());
   preview.addEventListener("input", () => {
     previewDirty = true;

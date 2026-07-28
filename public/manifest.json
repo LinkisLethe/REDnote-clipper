@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
   "description": "__MSG_extensionDescription__",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "minimum_chrome_version": "116",
   "default_locale": "zh_CN",
   "action": {
@@ -25,8 +25,7 @@
   "host_permissions": [
     "https://www.xiaohongshu.com/*",
     "https://*.xiaohongshu.com/*",
-    "https://*.xhscdn.com/*",
-    "https://paddle-model-ecology.bj.bcebos.com/*"
+    "https://*.xhscdn.com/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"

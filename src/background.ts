@@ -59,20 +59,6 @@ async function ensureOffscreenDocument(): Promise<void> {
   await creatingOffscreen;
 }
 
-async function recreateOffscreenDocument(): Promise<void> {
-  if (creatingOffscreen) {
-    await creatingOffscreen.catch(() => undefined);
-  }
-  if (await hasOffscreenDocument()) {
-    await withTimeout(
-      chrome.offscreen.closeDocument(),
-      OFFSCREEN_TIMEOUT_MS,
-      "Closing the stuck OCR background page timed out."
-    );
-  }
-  await ensureOffscreenDocument();
-}
-
 async function saveJob(job: OcrJob): Promise<void> {
   await chrome.storage.local.set({ [OCR_JOB_KEY]: job });
 }
@@ -110,11 +96,9 @@ async function notifyPopup(job: OcrJob): Promise<void> {
   }
 }
 
-async function startOcr(note: Note, bypassModelCache = false): Promise<OcrJob> {
+async function startOcr(note: Note): Promise<OcrJob> {
   const previous = await getJob();
-  if (bypassModelCache) {
-    await recreateOffscreenDocument();
-  } else if (
+  if (
     previous &&
     ["running", "pausing", "paused", "canceling"].includes(previous.status)
   ) {
@@ -140,8 +124,8 @@ async function startOcr(note: Note, bypassModelCache = false): Promise<OcrJob> {
     current: 0,
     total: note.images.length,
     results: note.images.map(() => null),
-    stage: "checking-cache",
-    progress: 0,
+    stage: "initializing-engine",
+    progress: 5,
     startedAt,
     stageStartedAt: startedAt,
     stageDurations: {},
@@ -153,8 +137,7 @@ async function startOcr(note: Note, bypassModelCache = false): Promise<OcrJob> {
     target: "offscreen",
     type: "PROCESS_OCR",
     jobId: job.id,
-    imageUrls: job.imageUrls,
-    bypassModelCache
+    imageUrls: job.imageUrls
   };
   await withTimeout(
     chrome.runtime.sendMessage(request),
@@ -327,10 +310,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   switch (request.type) {
     case "RUN_OCR":
       operation = startOcr(
-        (request as Extract<BackgroundRequest, { type: "RUN_OCR" }>).note,
-        Boolean(
-          (request as Extract<BackgroundRequest, { type: "RUN_OCR" }>).bypassModelCache
-        )
+        (request as Extract<BackgroundRequest, { type: "RUN_OCR" }>).note
       );
       break;
     case "RESTORE_OR_RUN_OCR":

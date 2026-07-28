@@ -38,6 +38,29 @@
         <span id="statusText" data-i18n="loadingPage">正在读取当前页面…</span>
       </section>
 
+      <section id="ocrProgressPanel" class="ocr-progress-card" hidden>
+        <div class="ocr-progress-header">
+          <strong id="ocrStageText">正在准备 OCR</strong>
+          <span id="ocrProgressValue">0%</span>
+        </div>
+        <div
+          id="ocrProgressTrack"
+          class="ocr-progress-track"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <span id="ocrProgressBar" class="ocr-progress-bar"></span>
+        </div>
+        <div class="ocr-progress-meta">
+          <span id="ocrElapsed"></span>
+          <span id="ocrRemaining"></span>
+        </div>
+        <p id="ocrProgressDetail" class="ocr-progress-detail"></p>
+        <div id="ocrStepTimings" class="ocr-step-timings"></div>
+      </section>
+
       <section class="preview-card">
         <div class="preview-header">
           <div>

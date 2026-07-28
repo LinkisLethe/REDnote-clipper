@@ -69,6 +69,7 @@ async function startOcr(note: Note): Promise<OcrJob> {
       // A new job supersedes the old one even if its worker has already stopped.
     }
   }
+  const startedAt = new Date().toISOString();
   const job: OcrJob = {
     id: crypto.randomUUID(),
     noteId: note.id,
@@ -77,7 +78,12 @@ async function startOcr(note: Note): Promise<OcrJob> {
     current: 0,
     total: note.images.length,
     results: note.images.map(() => null),
-    updatedAt: new Date().toISOString()
+    stage: "checking-cache",
+    progress: 0,
+    startedAt,
+    stageStartedAt: startedAt,
+    stageDurations: {},
+    updatedAt: startedAt
   };
   await saveJob(job);
   await ensureOffscreenDocument();
@@ -89,6 +95,29 @@ async function startOcr(note: Note): Promise<OcrJob> {
   };
   await chrome.runtime.sendMessage(request);
   return job;
+}
+
+async function updateStage(
+  message: Extract<BackgroundRequest, { type: "OCR_STAGE_PROGRESS" }>
+): Promise<OcrJob | undefined> {
+  const job = await getJob();
+  if (!job || job.id !== message.jobId) return undefined;
+  const updated: OcrJob = {
+    ...job,
+    stage: message.stage,
+    progress: Math.max(0, Math.min(100, message.progress)),
+    stageStartedAt: message.stageStartedAt,
+    currentImage: message.currentImage,
+    currentImageStartedAt: message.currentImageStartedAt,
+    bytesLoaded: message.bytesLoaded,
+    bytesTotal: message.bytesTotal,
+    bytesCached: message.bytesCached,
+    stageDurations: { ...job.stageDurations, ...message.stageDurations },
+    updatedAt: new Date().toISOString()
+  };
+  await saveJob(updated);
+  await notifyPopup(updated);
+  return updated;
 }
 
 async function cancelOcr(jobId: string): Promise<OcrJob | undefined> {
@@ -119,6 +148,11 @@ async function updateProgress(
     current: message.current,
     total: message.total,
     results,
+    stage: "recognizing-images",
+    progress: Math.max(
+      job.progress || 0,
+      50 + Math.round((message.current / Math.max(1, message.total)) * 45)
+    ),
     updatedAt: new Date().toISOString()
   };
   await saveJob(updated);
@@ -136,6 +170,11 @@ async function finishOcr(
     status: message.status,
     error: message.error,
     current: message.status === "completed" ? job.total : job.current,
+    progress: message.status === "completed" ? 100 : job.progress,
+    durationMs:
+      message.durationMs ??
+      Math.max(0, Date.now() - (Date.parse(job.startedAt || job.updatedAt) || Date.now())),
+    stageDurations: { ...job.stageDurations, ...message.stageDurations },
     updatedAt: new Date().toISOString()
   };
   await saveJob(updated);
@@ -160,6 +199,11 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     case "OCR_PROGRESS":
       operation = updateProgress(
         request as Extract<BackgroundRequest, { type: "OCR_PROGRESS" }>
+      );
+      break;
+    case "OCR_STAGE_PROGRESS":
+      operation = updateStage(
+        request as Extract<BackgroundRequest, { type: "OCR_STAGE_PROGRESS" }>
       );
       break;
     case "OCR_FINISHED":

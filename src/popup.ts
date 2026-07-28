@@ -7,6 +7,7 @@ import {
 import { createMarkdownFilename } from "./core/filename";
 import { createMessageGetter, getUiLanguage, localizeDocument } from "./core/i18n";
 import { applyOcrResults, renderMarkdown } from "./core/markdown";
+import { estimateRemainingMs, liveStageDurations } from "./core/ocr-progress";
 import type {
   BackgroundRequest,
   Note,
@@ -22,6 +23,15 @@ const message = createMessageGetter(language);
 const preview = document.querySelector<HTMLTextAreaElement>("#markdownPreview")!;
 const statusPanel = document.querySelector<HTMLElement>("#statusPanel")!;
 const statusText = document.querySelector<HTMLElement>("#statusText")!;
+const ocrProgressPanel = document.querySelector<HTMLElement>("#ocrProgressPanel")!;
+const ocrStageText = document.querySelector<HTMLElement>("#ocrStageText")!;
+const ocrProgressTrack = document.querySelector<HTMLElement>("#ocrProgressTrack")!;
+const ocrProgressBar = document.querySelector<HTMLElement>("#ocrProgressBar")!;
+const ocrProgressValue = document.querySelector<HTMLElement>("#ocrProgressValue")!;
+const ocrElapsed = document.querySelector<HTMLElement>("#ocrElapsed")!;
+const ocrRemaining = document.querySelector<HTMLElement>("#ocrRemaining")!;
+const ocrProgressDetail = document.querySelector<HTMLElement>("#ocrProgressDetail")!;
+const ocrStepTimings = document.querySelector<HTMLElement>("#ocrStepTimings")!;
 const noteMeta = document.querySelector<HTMLElement>("#noteMeta")!;
 const ocrToggle = document.querySelector<HTMLInputElement>("#ocrToggle")!;
 const refreshButton = document.querySelector<HTMLButtonElement>("#refreshButton")!;
@@ -77,19 +87,109 @@ function sameJobSource(job: OcrJob, value: Note): boolean {
   );
 }
 
+function formatDuration(durationMs: number): string {
+  const seconds = Math.max(0, durationMs) / 1000;
+  if (seconds < 60) {
+    const value = seconds === 0 ? "0" : seconds < 10 ? seconds.toFixed(1) : seconds.toFixed(0);
+    return message("durationSeconds", value);
+  }
+  return message("durationMinutes", [String(Math.floor(seconds / 60)), String(Math.round(seconds % 60))]);
+}
+
+function stageMessage(job: OcrJob): string {
+  if (job.status === "completed") return message("ocrCompleted");
+  if (job.status === "canceled") return message("ocrCanceled");
+  if (job.status === "error") return message("ocrFailed", job.error || "Unknown error");
+  switch (job.stage) {
+    case "checking-cache":
+      return message("ocrStageChecking");
+    case "downloading-models":
+      return message("ocrStageDownloading");
+    case "initializing-engine":
+      return message("ocrStageInitializing");
+    case "recognizing-images":
+      return message("ocrStageRecognizing", [
+        String(job.currentImage || Math.min(job.current + 1, job.total)),
+        String(job.total)
+      ]);
+    case "finalizing":
+      return message("ocrStageFinalizing");
+    default:
+      return message("ocrStarting");
+  }
+}
+
+function renderOcrProgress(job: OcrJob): void {
+  const now = Date.now();
+  const progress = job.status === "completed" ? 100 : Math.round(job.progress || 0);
+  const startedAt = Date.parse(job.startedAt || job.updatedAt);
+  const elapsedMs =
+    job.durationMs ?? Math.max(0, now - (Number.isFinite(startedAt) ? startedAt : now));
+  const remainingMs = estimateRemainingMs(job, now);
+  const durations = liveStageDurations(job, now);
+
+  ocrProgressPanel.hidden = false;
+  ocrStageText.textContent = stageMessage(job);
+  ocrProgressValue.textContent = `${progress}%`;
+  ocrProgressBar.style.width = `${progress}%`;
+  ocrProgressTrack.setAttribute("aria-valuenow", String(progress));
+  ocrProgressTrack.classList.toggle(
+    "is-indeterminate",
+    job.status === "running" &&
+      ["checking-cache", "initializing-engine", "finalizing"].includes(job.stage)
+  );
+  ocrElapsed.textContent = message("ocrElapsed", formatDuration(elapsedMs));
+  ocrRemaining.textContent =
+    job.status !== "running" && job.status !== "canceling"
+      ? message("ocrFinishedIn", formatDuration(elapsedMs))
+      : remainingMs === undefined
+        ? message("ocrEstimating")
+        : message("ocrRemaining", formatDuration(remainingMs));
+
+  if (job.stage === "downloading-models" && job.bytesTotal) {
+    ocrProgressDetail.textContent = message("ocrDownloadedBytes", [
+      (Math.min(job.bytesLoaded || 0, job.bytesTotal) / 1_000_000).toFixed(1),
+      (job.bytesTotal / 1_000_000).toFixed(1)
+    ]);
+  } else if (job.stage === "recognizing-images") {
+    const completed = job.results
+      .map((result) => result?.durationMs)
+      .filter((duration): duration is number => typeof duration === "number" && duration > 0);
+    ocrProgressDetail.textContent = completed.length
+      ? message(
+          "ocrAverageImage",
+          formatDuration(completed.reduce((sum, duration) => sum + duration, 0) / completed.length)
+        )
+      : message("ocrFirstImageEstimate");
+  } else {
+    ocrProgressDetail.textContent = "";
+  }
+
+  const timingLabels = [
+    ["checking-cache", "ocrTimeCache"],
+    ["downloading-models", "ocrTimeDownload"],
+    ["initializing-engine", "ocrTimeInitialize"],
+    ["recognizing-images", "ocrTimeRecognize"],
+    ["finalizing", "ocrTimeFinalize"]
+  ] as const;
+  ocrStepTimings.replaceChildren(
+    ...timingLabels.map(([stage, key]) => {
+      const item = document.createElement("span");
+      item.textContent = message(key, formatDuration(durations[stage] || 0));
+      return item;
+    })
+  );
+}
+
 function applyJob(job: OcrJob): void {
   if (!note || !sameJobSource(job, note)) return;
   currentJob = job;
   note = applyOcrResults(note, job.results);
   renderPreview();
+  renderOcrProgress(job);
   switch (job.status) {
     case "running":
-      setStatus(
-        job.current > 0
-          ? message("ocrProgress", [String(job.current), String(job.total)])
-          : message("ocrStarting"),
-        "working"
-      );
+      setStatus(stageMessage(job), "working");
       break;
     case "canceling":
       setStatus(message("canceling"), "working");
@@ -153,6 +253,7 @@ function demoNote(): Note {
 async function capturePage(): Promise<void> {
   note = null;
   currentJob = null;
+  ocrProgressPanel.hidden = true;
   previewDirty = false;
   preview.value = "";
   updateNoteMeta();
@@ -206,6 +307,7 @@ async function handleOcrToggle(): Promise<void> {
     if (isExtensionRuntime()) await restoreOrStartOcr();
     return;
   }
+  ocrProgressPanel.hidden = true;
   if (
     isExtensionRuntime() &&
     currentJob &&
@@ -281,6 +383,9 @@ async function initialize(): Promise<void> {
   preview.addEventListener("input", () => {
     previewDirty = true;
   });
+  window.setInterval(() => {
+    if (currentJob && !ocrProgressPanel.hidden) renderOcrProgress(currentJob);
+  }, 1000);
   await capturePage();
 }
 

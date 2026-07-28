@@ -21,6 +21,15 @@ export interface OcrImageResult {
   error?: string;
 }
 
+export type OcrStage =
+  | "checking-cache"
+  | "downloading-models"
+  | "initializing-engine"
+  | "recognizing-images"
+  | "finalizing";
+
+export type OcrStageDurations = Partial<Record<OcrStage, number>>;
+
 export interface NoteImage {
   index: number;
   url: string;
@@ -55,6 +64,17 @@ export interface OcrJob {
   current: number;
   total: number;
   results: Array<OcrImageResult | null>;
+  stage: OcrStage;
+  progress: number;
+  startedAt: string;
+  stageStartedAt: string;
+  currentImage?: number;
+  currentImageStartedAt?: string;
+  bytesLoaded?: number;
+  bytesTotal?: number;
+  bytesCached?: number;
+  stageDurations: OcrStageDurations;
+  durationMs?: number;
   error?: string;
   updatedAt: string;
 }
@@ -62,6 +82,20 @@ export interface OcrJob {
 export type BackgroundRequest =
   | { target: "background"; type: "RUN_OCR"; note: Note }
   | { target: "background"; type: "CANCEL_OCR"; jobId: string }
+  | {
+      target: "background";
+      type: "OCR_STAGE_PROGRESS";
+      jobId: string;
+      stage: OcrStage;
+      progress: number;
+      stageStartedAt: string;
+      currentImage?: number;
+      currentImageStartedAt?: string;
+      bytesLoaded?: number;
+      bytesTotal?: number;
+      bytesCached?: number;
+      stageDurations?: OcrStageDurations;
+    }
   | {
       target: "background";
       type: "OCR_PROGRESS";
@@ -75,6 +109,8 @@ export type BackgroundRequest =
       type: "OCR_FINISHED";
       jobId: string;
       status: "completed" | "canceled" | "error";
+      durationMs?: number;
+      stageDurations?: OcrStageDurations;
       error?: string;
     };
 

@@ -32,6 +32,9 @@ const ocrElapsed = document.querySelector<HTMLElement>("#ocrElapsed")!;
 const ocrRemaining = document.querySelector<HTMLElement>("#ocrRemaining")!;
 const ocrProgressDetail = document.querySelector<HTMLElement>("#ocrProgressDetail")!;
 const ocrStepTimings = document.querySelector<HTMLElement>("#ocrStepTimings")!;
+const directModelDownloadButton = document.querySelector<HTMLButtonElement>(
+  "#directModelDownloadButton"
+)!;
 const pauseOcrButton = document.querySelector<HTMLButtonElement>("#pauseOcrButton")!;
 const stopOcrButton = document.querySelector<HTMLButtonElement>("#stopOcrButton")!;
 const noteMeta = document.querySelector<HTMLElement>("#noteMeta")!;
@@ -39,6 +42,7 @@ const ocrToggle = document.querySelector<HTMLInputElement>("#ocrToggle")!;
 const refreshButton = document.querySelector<HTMLButtonElement>("#refreshButton")!;
 const copyButton = document.querySelector<HTMLButtonElement>("#copyButton")!;
 const downloadButton = document.querySelector<HTMLButtonElement>("#downloadButton")!;
+const versionText = document.querySelector<HTMLElement>("#versionText")!;
 
 let note: Note | null = null;
 let currentJob: OcrJob | null = null;
@@ -185,7 +189,12 @@ function renderOcrProgress(job: OcrJob): void {
     })
   );
   const controllable = ["running", "pausing", "paused"].includes(job.status);
-  pauseOcrButton.hidden = !controllable;
+  directModelDownloadButton.hidden = !(
+    controllable && job.stage === "checking-cache"
+  );
+  pauseOcrButton.hidden = !(
+    controllable && job.stage === "recognizing-images"
+  );
   stopOcrButton.hidden = !controllable;
   pauseOcrButton.textContent =
     job.status === "pausing" || job.status === "paused"
@@ -195,6 +204,12 @@ function renderOcrProgress(job: OcrJob): void {
 
 function applyJob(job: OcrJob): void {
   if (!note || !sameOcrJobSource(job, note)) return;
+  if (
+    currentJob?.id === job.id &&
+    Date.parse(currentJob.updatedAt) > Date.parse(job.updatedAt)
+  ) {
+    return;
+  }
   currentJob = job;
   note = applyOcrResults(note, job.results);
   renderPreview();
@@ -343,6 +358,31 @@ async function handlePauseOcr(): Promise<void> {
   }
 }
 
+async function handleDirectModelDownload(): Promise<void> {
+  if (!note) return;
+  directModelDownloadButton.disabled = true;
+  try {
+    ocrToggle.checked = true;
+    await chrome.storage.local.set({ [OCR_ENABLED_KEY]: true });
+    ocrProgressPanel.hidden = true;
+    setStatus(message("directModelDownloadStarting"), "working");
+    const request: BackgroundRequest = {
+      target: "background",
+      type: "RUN_OCR",
+      note,
+      bypassModelCache: true
+    };
+    const response = (await chrome.runtime.sendMessage(request)) as OcrJob | { error: string };
+    if ("error" in response) {
+      setStatus(message("ocrFailed", response.error), "error");
+      return;
+    }
+    applyJob(response);
+  } finally {
+    directModelDownloadButton.disabled = false;
+  }
+}
+
 async function handleStopOcr(): Promise<void> {
   if (!currentJob || !["running", "pausing", "paused"].includes(currentJob.status)) return;
   stopOcrButton.disabled = true;
@@ -409,6 +449,9 @@ async function initialize(): Promise<void> {
   localizeDocument(message);
   document.title = message("extensionName");
   if (isExtensionRuntime()) {
+    versionText.textContent = `${message("languageHint")} · v${chrome.runtime.getManifest().version}`;
+  }
+  if (isExtensionRuntime()) {
     const settings = await chrome.storage.local.get(OCR_ENABLED_KEY);
     ocrToggle.checked = Boolean(settings[OCR_ENABLED_KEY]);
     chrome.runtime.onMessage.addListener((incoming: unknown) => {
@@ -424,6 +467,10 @@ async function initialize(): Promise<void> {
   copyButton.addEventListener("click", () => void copyMarkdown());
   downloadButton.addEventListener("click", () => void downloadMarkdown());
   pauseOcrButton.addEventListener("click", () => void handlePauseOcr());
+  directModelDownloadButton.addEventListener(
+    "click",
+    () => void handleDirectModelDownload()
+  );
   stopOcrButton.addEventListener("click", () => void handleStopOcr());
   preview.addEventListener("input", () => {
     previewDirty = true;

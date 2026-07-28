@@ -2,6 +2,8 @@ import type { UiLanguage } from "./types";
 
 const fallbackMessages: Record<UiLanguage, Record<string, string>> = {
   "zh-CN": {
+    directModelDownload: "直接下载模型",
+    directModelDownloadStarting: "正在跳过缓存并直接下载 OCR 模型…",
     extensionName: "红薯 Markdown 采集器",
     extensionDescription: "将当前小红书笔记导出为纯文本 Markdown，可选本地 OCR。",
     appSubtitle: "当前笔记转纯文本 Markdown",
@@ -59,6 +61,8 @@ const fallbackMessages: Record<UiLanguage, Record<string, string>> = {
     canceling: "当前图片完成后取消…"
   },
   en: {
+    directModelDownload: "Download model directly",
+    directModelDownloadStarting: "Bypassing the cache and downloading OCR models…",
     extensionName: "Rednote Markdown Collector",
     extensionDescription: "Export the current Xiaohongshu note as plain-text Markdown with optional local OCR.",
     appSubtitle: "Current note to plain-text Markdown",

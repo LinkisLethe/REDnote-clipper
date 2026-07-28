@@ -1,4 +1,6 @@
 {
+  "directModelDownload": { "message": "直接下载模型" },
+  "directModelDownloadStarting": { "message": "正在跳过缓存并直接下载 OCR 模型…" },
   "extensionName": { "message": "红薯 Markdown 采集器" },
   "extensionDescription": { "message": "将当前小红书笔记导出为纯文本 Markdown，可选本地 OCR。" },
   "appSubtitle": { "message": "当前笔记转纯文本 Markdown" },

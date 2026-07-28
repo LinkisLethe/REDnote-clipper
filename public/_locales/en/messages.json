@@ -1,4 +1,6 @@
 {
+  "directModelDownload": { "message": "Download model directly" },
+  "directModelDownloadStarting": { "message": "Bypassing the cache and downloading OCR models…" },
   "extensionName": { "message": "Rednote Markdown Collector" },
   "extensionDescription": { "message": "Export the current Xiaohongshu note as plain-text Markdown with optional local OCR." },
   "appSubtitle": { "message": "Current note to plain-text Markdown" },

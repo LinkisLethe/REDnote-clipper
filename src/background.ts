@@ -8,14 +8,33 @@ import type {
 import { shouldReuseOcrJob } from "./core/ocr-job";
 
 const OCR_JOB_KEY = "lastOcrJob";
+const OFFSCREEN_TIMEOUT_MS = 10_000;
 let creatingOffscreen: Promise<void> | null = null;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
 
 async function hasOffscreenDocument(): Promise<boolean> {
   if (chrome.runtime.getContexts) {
-    const contexts = await chrome.runtime.getContexts({
-      contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
-      documentUrls: [chrome.runtime.getURL("offscreen.html")]
-    });
+    const contexts = await withTimeout(
+      chrome.runtime.getContexts({
+        contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+        documentUrls: [chrome.runtime.getURL("offscreen.html")]
+      }),
+      OFFSCREEN_TIMEOUT_MS,
+      "Checking the OCR background page timed out."
+    );
     return contexts.length > 0;
   }
   return false;
@@ -24,17 +43,34 @@ async function hasOffscreenDocument(): Promise<boolean> {
 async function ensureOffscreenDocument(): Promise<void> {
   if (await hasOffscreenDocument()) return;
   if (!creatingOffscreen) {
-    creatingOffscreen = chrome.offscreen
-      .createDocument({
+    creatingOffscreen = withTimeout(
+      chrome.offscreen.createDocument({
         url: "offscreen.html",
         reasons: [chrome.offscreen.Reason.WORKERS, chrome.offscreen.Reason.BLOBS],
         justification: "Run local OCR and process image blobs outside the popup."
-      })
+      }),
+      OFFSCREEN_TIMEOUT_MS,
+      "Creating the OCR background page timed out."
+    )
       .finally(() => {
         creatingOffscreen = null;
       });
   }
   await creatingOffscreen;
+}
+
+async function recreateOffscreenDocument(): Promise<void> {
+  if (creatingOffscreen) {
+    await creatingOffscreen.catch(() => undefined);
+  }
+  if (await hasOffscreenDocument()) {
+    await withTimeout(
+      chrome.offscreen.closeDocument(),
+      OFFSCREEN_TIMEOUT_MS,
+      "Closing the stuck OCR background page timed out."
+    );
+  }
+  await ensureOffscreenDocument();
 }
 
 async function saveJob(job: OcrJob): Promise<void> {
@@ -54,7 +90,11 @@ async function hasActiveOcrJob(jobId: string): Promise<boolean> {
       type: "HAS_OCR_JOB",
       jobId
     };
-    const response = (await chrome.runtime.sendMessage(request)) as { active?: boolean };
+    const response = (await withTimeout(
+      chrome.runtime.sendMessage(request),
+      OFFSCREEN_TIMEOUT_MS,
+      "Checking the OCR task timed out."
+    )) as { active?: boolean };
     return Boolean(response?.active);
   } catch {
     return false;
@@ -70,9 +110,14 @@ async function notifyPopup(job: OcrJob): Promise<void> {
   }
 }
 
-async function startOcr(note: Note): Promise<OcrJob> {
+async function startOcr(note: Note, bypassModelCache = false): Promise<OcrJob> {
   const previous = await getJob();
-  if (previous && ["running", "pausing", "paused", "canceling"].includes(previous.status)) {
+  if (bypassModelCache) {
+    await recreateOffscreenDocument();
+  } else if (
+    previous &&
+    ["running", "pausing", "paused", "canceling"].includes(previous.status)
+  ) {
     try {
       await ensureOffscreenDocument();
       const cancel: OffscreenRequest = {
@@ -108,9 +153,14 @@ async function startOcr(note: Note): Promise<OcrJob> {
     target: "offscreen",
     type: "PROCESS_OCR",
     jobId: job.id,
-    imageUrls: job.imageUrls
+    imageUrls: job.imageUrls,
+    bypassModelCache
   };
-  await chrome.runtime.sendMessage(request);
+  await withTimeout(
+    chrome.runtime.sendMessage(request),
+    OFFSCREEN_TIMEOUT_MS,
+    "Starting the OCR task timed out."
+  );
   return job;
 }
 
@@ -276,7 +326,12 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   let operation: Promise<unknown>;
   switch (request.type) {
     case "RUN_OCR":
-      operation = startOcr((request as Extract<BackgroundRequest, { type: "RUN_OCR" }>).note);
+      operation = startOcr(
+        (request as Extract<BackgroundRequest, { type: "RUN_OCR" }>).note,
+        Boolean(
+          (request as Extract<BackgroundRequest, { type: "RUN_OCR" }>).bypassModelCache
+        )
+      );
       break;
     case "RESTORE_OR_RUN_OCR":
       operation = restoreOrStartOcr(

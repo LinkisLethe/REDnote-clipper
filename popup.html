@@ -60,6 +60,9 @@
         <p id="ocrProgressDetail" class="ocr-progress-detail"></p>
         <div id="ocrStepTimings" class="ocr-step-timings"></div>
         <div class="ocr-progress-actions">
+          <button id="directModelDownloadButton" class="ocr-action-button is-primary" type="button" data-i18n="directModelDownload">
+            Direct model download
+          </button>
           <button id="pauseOcrButton" class="ocr-action-button" type="button" data-i18n="pauseOcr">
             暂停
           </button>
@@ -89,7 +92,7 @@
       </section>
 
       <footer class="app-footer">
-        <span data-i18n="languageHint">界面语言跟随 Chrome</span>
+        <span id="versionText" data-i18n="languageHint">Interface language follows Chrome</span>
         <button id="downloadButton" class="primary-button" type="button" disabled>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" />

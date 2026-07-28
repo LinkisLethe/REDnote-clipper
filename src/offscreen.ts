@@ -195,25 +195,30 @@ async function downloadModel(
   }
 }
 
-async function cachedModelObjectUrls(report: StageReporter): Promise<[string, string]> {
+async function cachedModelObjectUrls(
+  report: StageReporter,
+  bypassModelCache = false
+): Promise<[string, string]> {
   const urls = [MODEL_URLS.detection, MODEL_URLS.recognition] as const;
   let cache: Cache | null = null;
   let cachedResponses: Array<Response | undefined> = [undefined, undefined];
-  try {
-    const openedCache = await withTimeout(
-      caches.open(MODEL_CACHE),
-      MODEL_CACHE_TIMEOUT_MS,
-      "Opening the OCR model cache timed out."
-    );
-    cache = openedCache;
-    cachedResponses = await withTimeout(
-      Promise.all(urls.map((url) => openedCache.match(url))),
-      MODEL_CACHE_TIMEOUT_MS,
-      "Reading the OCR model cache timed out."
-    );
-  } catch {
-    await clearModelCache();
-    cache = null;
+  if (!bypassModelCache) {
+    try {
+      const openedCache = await withTimeout(
+        caches.open(MODEL_CACHE),
+        MODEL_CACHE_TIMEOUT_MS,
+        "Opening the OCR model cache timed out."
+      );
+      cache = openedCache;
+      cachedResponses = await withTimeout(
+        Promise.all(urls.map((url) => openedCache.match(url))),
+        MODEL_CACHE_TIMEOUT_MS,
+        "Reading the OCR model cache timed out."
+      );
+    } catch {
+      await clearModelCache();
+      cache = null;
+    }
   }
 
   const cached = await Promise.all(
@@ -288,7 +293,11 @@ async function cachedModelObjectUrls(report: StageReporter): Promise<[string, st
   return objectUrls as [string, string];
 }
 
-async function getOcrInstance(jobId: string, report: StageReporter): Promise<OcrInstance> {
+async function getOcrInstance(
+  jobId: string,
+  report: StageReporter,
+  bypassModelCache = false
+): Promise<OcrInstance> {
   if (instanceReady && instancePromise) return instancePromise;
   initializationSubscribers.set(jobId, report);
   if (initializationState) {
@@ -300,7 +309,10 @@ async function getOcrInstance(jobId: string, report: StageReporter): Promise<Ocr
   }
   if (!instancePromise) {
     instancePromise = (async () => {
-      const [detectionUrl, recognitionUrl] = await cachedModelObjectUrls(reportInitialization);
+      const [detectionUrl, recognitionUrl] = await cachedModelObjectUrls(
+        reportInitialization,
+        bypassModelCache
+      );
       await reportInitialization("initializing-engine", 45);
       const instance = await PaddleOCR.create({
         textDetectionModelName: "PP-OCRv6_small_det",
@@ -532,13 +544,17 @@ async function runRecognitionQueued(operation: () => Promise<void>): Promise<voi
   await scheduled;
 }
 
-async function processJob(jobId: string, imageUrls: string[]): Promise<void> {
+async function processJob(
+  jobId: string,
+  imageUrls: string[],
+  bypassModelCache = false
+): Promise<void> {
   activeJobs.add(jobId);
   const jobStartedAt = performance.now();
   const tracker = createStageTracker(jobId);
   try {
     await tracker.report("checking-cache", 2);
-    const ocr = await getOcrInstance(jobId, tracker.report);
+    const ocr = await getOcrInstance(jobId, tracker.report, bypassModelCache);
     await runRecognitionQueued(async () => {
       for (let index = 0; index < imageUrls.length; index += 1) {
         if (canceledJobs.has(jobId)) return;
@@ -617,7 +633,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   }
   if (request.type === "PROCESS_OCR") {
     const job = request as Extract<OffscreenRequest, { type: "PROCESS_OCR" }>;
-    void processJob(job.jobId, job.imageUrls);
+    void processJob(job.jobId, job.imageUrls, Boolean(job.bypassModelCache));
     sendResponse({ accepted: true });
     return false;
   }

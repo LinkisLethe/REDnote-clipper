@@ -6,6 +6,12 @@
   font-synthesis: none;
 }
 
+html {
+  width: 540px;
+  height: 600px;
+  overflow: hidden;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -16,7 +22,8 @@
 
 body {
   width: 540px;
-  height: 690px;
+  height: 600px;
+  max-height: 600px;
   margin: 0;
   overflow: hidden;
   background:
@@ -37,13 +44,16 @@ button {
 .app-shell {
   display: flex;
   height: 100%;
+  min-height: 0;
   flex-direction: column;
-  gap: 12px;
-  padding: 18px;
+  gap: 10px;
+  overflow: hidden;
+  padding: 14px;
 }
 
 .app-header {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 12px;
 }
@@ -86,9 +96,16 @@ h1 {
   font-size: 12px;
 }
 
+.header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 7px;
+}
+
 .icon-button,
 .text-button,
-.primary-button {
+.primary-button,
+.obsidian-button {
   border: 0;
   cursor: pointer;
 }
@@ -109,7 +126,8 @@ h1 {
 }
 
 .icon-button svg,
-.primary-button svg {
+.primary-button svg,
+.obsidian-button svg {
   width: 18px;
   fill: none;
   stroke: currentColor;
@@ -127,6 +145,7 @@ h1 {
 }
 
 .control-card {
+  flex: 0 0 auto;
   padding: 13px 14px;
 }
 
@@ -148,6 +167,115 @@ h1 {
   color: #827a74;
   font-size: 11px;
   line-height: 1.45;
+}
+
+.ocr-selection-panel {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid #ebe5df;
+}
+
+.ocr-selection-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #605852;
+  font-size: 10px;
+}
+
+.ocr-selection-heading strong {
+  font-size: 11px;
+  font-weight: 680;
+}
+
+#ocrSelectionSummary {
+  overflow: hidden;
+  color: #8a817a;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ocr-selection-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ocr-selection-options label {
+  cursor: pointer;
+}
+
+.ocr-selection-options input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ocr-selection-options span {
+  display: grid;
+  min-height: 29px;
+  place-items: center;
+  border: 1px solid #dfd8d1;
+  border-radius: 8px;
+  background: #faf8f6;
+  color: #6c645e;
+  font-size: 10px;
+  font-weight: 620;
+}
+
+.ocr-selection-options input:checked + span {
+  border-color: rgba(216, 71, 62, 0.45);
+  background: rgba(216, 71, 62, 0.08);
+  color: #b53a33;
+}
+
+.ocr-selection-options input:focus-visible + span {
+  outline: 3px solid rgba(216, 71, 62, 0.16);
+}
+
+.ocr-selection-options input:disabled + span {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.ocr-custom-range {
+  margin-top: 7px;
+}
+
+#ocrRangeInput {
+  width: 100%;
+  min-height: 31px;
+  padding: 0 9px;
+  border: 1px solid #ddd5ce;
+  border-radius: 8px;
+  outline: 0;
+  background: #fff;
+  color: #514a45;
+  font-size: 10px;
+}
+
+#ocrRangeInput:focus {
+  border-color: rgba(216, 71, 62, 0.6);
+  box-shadow: 0 0 0 3px rgba(216, 71, 62, 0.08);
+}
+
+.ocr-start-button {
+  width: 100%;
+  min-height: 31px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 9px;
+  background: #d8473e;
+  color: #fff;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.ocr-start-button:hover:not(:disabled) {
+  background: #c93d35;
 }
 
 .switch {
@@ -199,6 +327,7 @@ h1 {
 
 .status-panel {
   display: flex;
+  flex: 0 0 auto;
   min-height: 34px;
   align-items: center;
   gap: 9px;
@@ -237,6 +366,7 @@ h1 {
 }
 
 .ocr-progress-card {
+  flex: 0 0 auto;
   padding: 11px 12px;
   border: 1px solid rgba(207, 199, 191, 0.85);
   border-radius: 12px;
@@ -447,16 +577,116 @@ button:disabled {
 }
 
 .app-footer {
-  display: flex;
-  min-height: 40px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  display: block;
+  min-height: 38px;
+  flex: 0 0 auto;
 }
 
-.app-footer > span {
-  color: #8b837d;
+.footer-controls {
+  display: grid;
+  width: 100%;
+  gap: 7px;
+}
+
+.footer-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.footer-actions > button {
+  width: 100%;
+}
+
+.obsidian-feedback {
+  display: none;
+  min-height: 38px;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  padding: 7px 9px;
+  border: 1px solid #c7e3d0;
+  border-radius: 10px;
+  background: #edf7f0;
+  --feedback-accent: #287047;
+  color: #287047;
   font-size: 10px;
+}
+
+.obsidian-feedback.is-visible {
+  display: flex;
+}
+
+.obsidian-feedback.is-working {
+  --feedback-accent: #7c6b5e;
+  border-color: #ddd4cc;
+  background: #f3efeb;
+  color: #7c6b5e;
+}
+
+.obsidian-feedback.is-error {
+  --feedback-accent: #b53a33;
+  border-color: #efc6c2;
+  background: #fcedeb;
+  color: #b53a33;
+}
+
+.obsidian-feedback-icon {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--feedback-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.obsidian-feedback-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.obsidian-feedback-copy strong,
+.obsidian-feedback-copy > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.obsidian-feedback-copy strong {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.obsidian-feedback-copy > span {
+  color: currentColor;
+  font-size: 8px;
+  opacity: 0.78;
+}
+
+.obsidian-button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid #d8d0c8;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #554e49;
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.obsidian-button:hover:not(:disabled) {
+  border-color: #c8bdb5;
+  background: #fff;
 }
 
 .primary-button {
@@ -479,5 +709,9 @@ button:disabled {
 }
 
 .primary-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.obsidian-button:active:not(:disabled) {
   transform: translateY(1px);
 }

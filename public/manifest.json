@@ -2,13 +2,14 @@
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
   "description": "__MSG_extensionDescription__",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "minimum_chrome_version": "116",
   "default_locale": "zh_CN",
   "action": {
     "default_popup": "popup.html",
     "default_title": "__MSG_extensionName__"
   },
+  "options_page": "options.html",
   "background": {
     "service_worker": "assets/background.js",
     "type": "module"
@@ -24,7 +25,11 @@
   "host_permissions": [
     "https://www.xiaohongshu.com/*",
     "https://*.xiaohongshu.com/*",
-    "https://*.xhscdn.com/*"
+    "https://*.xhscdn.com/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://127.0.0.1/*",
+    "https://localhost/*"
   ],
   "cross_origin_embedder_policy": {
     "value": "require-corp"

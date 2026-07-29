@@ -13,6 +13,12 @@ import {
   liveStageDurations
 } from "./core/ocr-progress";
 import { sameOcrJobSource } from "./core/ocr-job";
+import {
+  formatOcrPageList,
+  resolveOcrImageIndexes,
+  type OcrSelectionError,
+  type OcrSelectionMode
+} from "./core/ocr-selection";
 import type {
   BackgroundRequest,
   Note,
@@ -38,16 +44,114 @@ const ocrProgressDetail = document.querySelector<HTMLElement>("#ocrProgressDetai
 const ocrStepTimings = document.querySelector<HTMLElement>("#ocrStepTimings")!;
 const pauseOcrButton = document.querySelector<HTMLButtonElement>("#pauseOcrButton")!;
 const stopOcrButton = document.querySelector<HTMLButtonElement>("#stopOcrButton")!;
+const ocrSelectionPanel = document.querySelector<HTMLElement>("#ocrSelectionPanel")!;
+const ocrSelectionSummary = document.querySelector<HTMLElement>("#ocrSelectionSummary")!;
+const ocrSelectionInputs = [
+  ...document.querySelectorAll<HTMLInputElement>('input[name="ocrSelectionMode"]')
+];
+const skipCoverInput = document.querySelector<HTMLInputElement>(
+  'input[name="ocrSelectionMode"][value="skip-cover"]'
+)!;
+const ocrCustomRangeRow = document.querySelector<HTMLElement>("#ocrCustomRangeRow")!;
+const ocrRangeInput = document.querySelector<HTMLInputElement>("#ocrRangeInput")!;
+const startOcrButton = document.querySelector<HTMLButtonElement>("#startOcrButton")!;
 const noteMeta = document.querySelector<HTMLElement>("#noteMeta")!;
 const ocrToggle = document.querySelector<HTMLInputElement>("#ocrToggle")!;
+const settingsButton = document.querySelector<HTMLButtonElement>("#settingsButton")!;
 const refreshButton = document.querySelector<HTMLButtonElement>("#refreshButton")!;
 const copyButton = document.querySelector<HTMLButtonElement>("#copyButton")!;
+const obsidianButton = document.querySelector<HTMLButtonElement>("#obsidianButton")!;
+const obsidianFeedback = document.querySelector<HTMLElement>("#obsidianFeedback")!;
+const obsidianFeedbackIcon = document.querySelector<HTMLElement>("#obsidianFeedbackIcon")!;
+const obsidianFeedbackText = document.querySelector<HTMLElement>("#obsidianFeedbackText")!;
+const obsidianFeedbackDetail = document.querySelector<HTMLElement>("#obsidianFeedbackDetail")!;
 const downloadButton = document.querySelector<HTMLButtonElement>("#downloadButton")!;
-const versionText = document.querySelector<HTMLElement>("#versionText")!;
 
 let note: Note | null = null;
 let currentJob: OcrJob | null = null;
 let previewDirty = false;
+
+function isOcrJobActive(job: OcrJob | null): boolean {
+  return Boolean(
+    job && ["running", "pausing", "paused", "canceling"].includes(job.status)
+  );
+}
+
+function selectedOcrMode(): OcrSelectionMode {
+  const value = ocrSelectionInputs.find((input) => input.checked)?.value;
+  return value === "skip-cover" || value === "custom" ? value : "all";
+}
+
+function selectionErrorMessage(error: OcrSelectionError): string {
+  if (error === "range-required") return message("ocrRangeRequired");
+  if (error === "range-invalid") return message("ocrRangeInvalid");
+  if (error === "range-out-of-bounds") {
+    return message("ocrRangeBounds", String(note?.images.length || 0));
+  }
+  return message("noImages");
+}
+
+function setSelectionFromJob(job: OcrJob): void {
+  if (!note) return;
+  const allIndexes = note.images.map((_image, index) => index);
+  const skipCoverIndexes = allIndexes.slice(1);
+  const value = job.imageIndexes.join(",");
+  const allValue = allIndexes.join(",");
+  const skipCoverValue = skipCoverIndexes.join(",");
+  const mode: OcrSelectionMode =
+    value === allValue
+      ? "all"
+      : skipCoverIndexes.length > 0 && value === skipCoverValue
+        ? "skip-cover"
+        : "custom";
+  for (const input of ocrSelectionInputs) input.checked = input.value === mode;
+  if (mode === "custom") ocrRangeInput.value = formatOcrPageList(job.imageIndexes);
+}
+
+function renderOcrSelection(): void {
+  const visible = Boolean(ocrToggle.checked && note);
+  ocrSelectionPanel.hidden = !visible;
+  if (!visible || !note) return;
+
+  const active = isOcrJobActive(currentJob);
+  if (skipCoverInput.checked && note.images.length <= 1) {
+    const allInput = ocrSelectionInputs.find((input) => input.value === "all");
+    if (allInput) allInput.checked = true;
+  }
+  for (const input of ocrSelectionInputs) {
+    input.disabled = active || (input === skipCoverInput && note.images.length <= 1);
+  }
+  const mode = selectedOcrMode();
+  ocrCustomRangeRow.hidden = mode !== "custom";
+  ocrRangeInput.disabled = active;
+  startOcrButton.disabled = active || note.images.length === 0;
+  startOcrButton.textContent =
+    currentJob?.status === "completed" ? message("rerunOcr") : message("startOcr");
+
+  const selection = resolveOcrImageIndexes(
+    mode,
+    ocrRangeInput.value,
+    note.images.length
+  );
+  ocrSelectionSummary.textContent = selection.ok
+    ? message("ocrSelectionSummary", [
+        String(selection.imageIndexes.length),
+        String(note.images.length),
+        formatOcrPageList(selection.imageIndexes)
+      ])
+    : "";
+}
+
+function clearNoteOcrResults(value: Note): Note {
+  return {
+    ...value,
+    images: value.images.map((image) => {
+      const next = { ...image };
+      delete next.ocr;
+      return next;
+    })
+  };
+}
 
 function isExtensionRuntime(): boolean {
   return Boolean(globalThis.chrome?.runtime?.id && globalThis.chrome?.scripting);
@@ -62,8 +166,26 @@ function setStatus(
   statusPanel.className = `status-panel ${state === "neutral" ? "" : `is-${state}`}`.trim();
 }
 
+function setObsidianFeedback(
+  text: string,
+  state: "working" | "success" | "error" | "neutral",
+  detail = ""
+): void {
+  obsidianFeedbackIcon.textContent =
+    state === "success" ? "✓" : state === "error" ? "!" : state === "neutral" ? "•" : "…";
+  obsidianFeedbackText.textContent = text;
+  obsidianFeedbackDetail.textContent = detail;
+  obsidianFeedbackDetail.hidden = !detail;
+  obsidianFeedback.title = detail || text;
+  obsidianFeedback.className = `obsidian-feedback is-visible${
+    state === "success" || state === "neutral" ? "" : ` is-${state}`
+  }`;
+  obsidianFeedback.setAttribute("aria-hidden", "false");
+}
+
 function setReady(enabled: boolean): void {
   copyButton.disabled = !enabled;
+  obsidianButton.disabled = !enabled;
   downloadButton.disabled = !enabled;
 }
 
@@ -84,7 +206,15 @@ function updateNoteMeta(): void {
   const source = message(
     note.extractionSource === "initial-state" ? "sourceState" : "sourceDom"
   );
-  noteMeta.textContent = `${message("noteMeta", [note.authorName, String(note.images.length)])} · ${message("extractedBy", source)}`;
+  const meta =
+    ocrToggle.checked && currentJob
+      ? message("noteMetaOcr", [
+          note.authorName,
+          String(currentJob.imageIndexes.length),
+          String(note.images.length)
+        ])
+      : message("noteMeta", [note.authorName, String(note.images.length)]);
+  noteMeta.textContent = `${meta} · ${message("extractedBy", source)}`;
 }
 
 function formatDuration(durationMs: number): string {
@@ -111,6 +241,7 @@ function localizeOcrError(error?: string): string {
   };
   const key = exactMessages[error];
   if (key) return message(key);
+  if (error === "OCR_IMAGE_SELECTION_INVALID") return message("ocrRangeInvalid");
   if (error.startsWith("OCR_MODEL_READ_FAILED:")) return message("ocrErrorModelRead");
   return error;
 }
@@ -143,7 +274,8 @@ function stageMessage(job: OcrJob): string {
     case "recognizing-images":
       return message("ocrStageRecognizing", [
         String(job.currentImage || Math.min(job.current + 1, job.total)),
-        String(job.total)
+        String(job.total),
+        String(job.currentSourceImage || job.currentImage || 1)
       ]);
     case "finalizing":
       return message("ocrStageFinalizing");
@@ -236,6 +368,7 @@ function renderOcrProgress(job: OcrJob): void {
     job.status === "pausing" || job.status === "paused"
       ? message("resumeOcr")
       : message("pauseOcr");
+  renderOcrSelection();
 }
 
 function applyJob(job: OcrJob): void {
@@ -246,8 +379,11 @@ function applyJob(job: OcrJob): void {
   ) {
     return;
   }
+  const changedJob = currentJob?.id !== job.id;
   currentJob = job;
+  if (changedJob) setSelectionFromJob(job);
   note = applyOcrResults(note, job.results);
+  updateNoteMeta();
   renderPreview();
   if (!ocrToggle.checked) {
     ocrProgressPanel.hidden = true;
@@ -257,25 +393,72 @@ function applyJob(job: OcrJob): void {
   renderOcrProgress(job);
 }
 
-async function restoreOrStartOcr(): Promise<void> {
+async function restoreOcr(): Promise<void> {
   if (!note || !ocrToggle.checked) return;
   if (note.images.length === 0) {
     setStatus(message("noImages"), "neutral");
     renderPreview(true);
     return;
   }
-  setStatus(message("ocrStarting"), "working");
   const request: BackgroundRequest = {
     target: "background",
-    type: "RESTORE_OR_RUN_OCR",
+    type: "RESTORE_OCR",
     note
   };
-  const response = (await chrome.runtime.sendMessage(request)) as OcrJob | { error: string };
-  if ("error" in response) {
+  const response = (await chrome.runtime.sendMessage(request)) as
+    | OcrJob
+    | null
+    | { error: string };
+  if (response && "error" in response) {
     setStatus(message("ocrFailed", localizeOcrError(response.error)), "error");
     return;
   }
-  applyJob(response);
+  if (response) {
+    applyJob(response);
+    return;
+  }
+  currentJob = null;
+  renderOcrSelection();
+  setStatus(message("ocrSelectionReady"), "neutral");
+}
+
+async function handleStartOcr(): Promise<void> {
+  if (!note || !ocrToggle.checked || isOcrJobActive(currentJob)) return;
+  const selection = resolveOcrImageIndexes(
+    selectedOcrMode(),
+    ocrRangeInput.value,
+    note.images.length
+  );
+  if (!selection.ok) {
+    setStatus(selectionErrorMessage(selection.error), "error");
+    if (selectedOcrMode() === "custom") ocrRangeInput.focus();
+    return;
+  }
+  if (!isExtensionRuntime()) return;
+
+  note = clearNoteOcrResults(note);
+  currentJob = null;
+  ocrProgressPanel.hidden = true;
+  previewDirty = false;
+  renderPreview(true);
+  setStatus(message("ocrStarting"), "working");
+  startOcrButton.disabled = true;
+  try {
+    const request: BackgroundRequest = {
+      target: "background",
+      type: "RUN_OCR",
+      note,
+      imageIndexes: selection.imageIndexes
+    };
+    const response = (await chrome.runtime.sendMessage(request)) as OcrJob | { error: string };
+    if ("error" in response) {
+      setStatus(message("ocrFailed", localizeOcrError(response.error)), "error");
+      return;
+    }
+    applyJob(response);
+  } finally {
+    renderOcrSelection();
+  }
 }
 
 function demoNote(): Note {
@@ -337,7 +520,8 @@ async function capturePage(): Promise<void> {
     renderPreview(true);
     setReady(true);
     setStatus(message("ready"), "success");
-    if (ocrToggle.checked && isExtensionRuntime()) await restoreOrStartOcr();
+    renderOcrSelection();
+    if (ocrToggle.checked && isExtensionRuntime()) await restoreOcr();
   } catch (error) {
     console.error(error);
     setStatus(message("captureFailed"), "error");
@@ -352,8 +536,10 @@ async function handleOcrToggle(): Promise<void> {
     await chrome.storage.local.set({ [OCR_ENABLED_KEY]: ocrToggle.checked });
   }
   renderPreview(true);
+  updateNoteMeta();
+  renderOcrSelection();
   if (ocrToggle.checked) {
-    if (isExtensionRuntime()) await restoreOrStartOcr();
+    if (isExtensionRuntime()) await restoreOcr();
     return;
   }
   ocrProgressPanel.hidden = true;
@@ -412,6 +598,8 @@ async function handleStopOcr(): Promise<void> {
     await chrome.storage.local.set({ [OCR_ENABLED_KEY]: false });
     previewDirty = false;
     renderPreview(true);
+    updateNoteMeta();
+    renderOcrSelection();
     applyJob(response);
     setStatus(message("ready"), "success");
   } finally {
@@ -455,13 +643,78 @@ async function downloadMarkdown(): Promise<void> {
   }
 }
 
+function obsidianWriteErrorMessage(error: string): string {
+  if (error === "OBSIDIAN_NOT_CONFIGURED") return message("obsidianNotConfigured");
+  if (error === "OBSIDIAN_CONTENT_EMPTY") return message("obsidianContentEmpty");
+  if (error === "OBSIDIAN_CONNECTION_TIMEOUT") return message("obsidianConnectionTimeout");
+  if (error === "OBSIDIAN_CONNECTION_FAILED") return message("obsidianConnectionFailed");
+  if (error === "OBSIDIAN_UNAUTHORIZED") return message("obsidianUnauthorized");
+  if (error.startsWith("OBSIDIAN_HTTP_ERROR:")) {
+    return message("obsidianHttpError", error.split(":")[1] || "?");
+  }
+  return message("obsidianWriteFailed");
+}
+
+async function writeToObsidian(): Promise<void> {
+  if (!note || !isExtensionRuntime()) return;
+  const filename = createMarkdownFilename(note.title, note.authorName, note.publishedAt);
+  obsidianButton.disabled = true;
+  setObsidianFeedback(message("obsidianWritingShort"), "working");
+  try {
+    const sendWriteRequest = async (overwrite: boolean) => {
+      const request: BackgroundRequest = {
+        target: "background",
+        type: "WRITE_OBSIDIAN_NOTE",
+        filename,
+        markdown: preview.value,
+        overwrite
+      };
+      return (await chrome.runtime.sendMessage(request)) as {
+        ok?: boolean;
+        conflict?: true;
+        path?: string;
+        error?: string;
+      };
+    };
+
+    let response = await sendWriteRequest(false);
+    if (response.error) throw new Error(response.error);
+    if (response.conflict) {
+      const overwrite = window.confirm(
+        message("obsidianOverwriteConfirm", response.path || filename)
+      );
+      if (!overwrite) {
+        setObsidianFeedback(message("obsidianWriteCanceledShort"), "neutral");
+        return;
+      }
+      setObsidianFeedback(message("obsidianWritingShort"), "working");
+      response = await sendWriteRequest(true);
+      if (response.error) throw new Error(response.error);
+    }
+    if (!response.ok) throw new Error("OBSIDIAN_WRITE_FAILED");
+    setObsidianFeedback(
+      message("obsidianWrittenShort"),
+      "success",
+      response.path || filename
+    );
+  } catch (error) {
+    const errorText = obsidianWriteErrorMessage(
+      error instanceof Error ? error.message : String(error)
+    );
+    setObsidianFeedback(
+      message("obsidianWriteFailedShort"),
+      "error",
+      errorText
+    );
+  } finally {
+    obsidianButton.disabled = !note;
+  }
+}
+
 async function initialize(): Promise<void> {
   document.documentElement.lang = language;
   localizeDocument(message);
   document.title = message("extensionName");
-  if (isExtensionRuntime()) {
-    versionText.textContent = `${message("languageHint")} · v${chrome.runtime.getManifest().version}`;
-  }
   if (isExtensionRuntime()) {
     const settings = await chrome.storage.local.get(OCR_ENABLED_KEY);
     ocrToggle.checked = Boolean(settings[OCR_ENABLED_KEY]);
@@ -474,8 +727,21 @@ async function initialize(): Promise<void> {
     });
   }
   ocrToggle.addEventListener("change", () => void handleOcrToggle());
+  for (const input of ocrSelectionInputs) {
+    input.addEventListener("change", () => {
+      renderOcrSelection();
+      if (selectedOcrMode() === "custom") ocrRangeInput.focus();
+    });
+  }
+  ocrRangeInput.addEventListener("input", renderOcrSelection);
+  ocrRangeInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") void handleStartOcr();
+  });
+  startOcrButton.addEventListener("click", () => void handleStartOcr());
+  settingsButton.addEventListener("click", () => void chrome.runtime.openOptionsPage());
   refreshButton.addEventListener("click", () => void capturePage());
   copyButton.addEventListener("click", () => void copyMarkdown());
+  obsidianButton.addEventListener("click", () => void writeToObsidian());
   downloadButton.addEventListener("click", () => void downloadMarkdown());
   pauseOcrButton.addEventListener("click", () => void handlePauseOcr());
   stopOcrButton.addEventListener("click", () => void handleStopOcr());

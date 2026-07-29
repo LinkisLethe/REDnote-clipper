@@ -1,39 +1,26 @@
 # XHS Clipper
 
-[![Chrome](https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&logoColor=white&style=flat-square)](https://www.google.com/chrome/)
+[![Chrome 116+](https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&logoColor=white&style=flat-square)](https://www.google.com/chrome/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
 [![OCR](https://img.shields.io/badge/OCR-PP--OCRv6-0C7BDC?style=flat-square)](https://github.com/PaddlePaddle/PaddleOCR)
+[![Version](https://img.shields.io/badge/version-0.4.0-D8473E?style=flat-square)](https://github.com/LinkisLethe/xhs-clipper)
 
 [English](README.md)
 
-XHS Clipper 是一个 Chrome Manifest V3 扩展。打开一篇小红书笔记后，点击扩展即可读取标题、正文、作者、标签、互动数据和图片顺序，并导出纯文本 Markdown 文件。图片不会写入文件；只有打开 OCR 开关时，扩展才会识别图片文字。
+XHS Clipper 是一个 Chrome Manifest V3 扩展。打开一篇小红书图文笔记后，它可以读取页面内容，将指定图片交给浏览器本地 OCR，再生成可编辑的纯文本 Markdown。结果既能下载，也能直接写入本机 Obsidian 仓库。
 
-## 直接使用
+## 主要功能
 
-1. 打开 `chrome://extensions/`。
-2. 打开右上角“开发者模式”。
-3. 点击“加载已解压的扩展程序”。
-4. 选择本项目的 `dist` 文件夹。
-5. 打开一篇小红书图文笔记，等页面内容显示完整后点击扩展图标。
-6. 检查或修改 Markdown 预览，然后点击“下载 .md”。
+- 采集当前笔记的标题、正文、作者、标签、发布时间、互动数据、来源链接和图片顺序。
+- 优先读取页面结构化数据，失败时退回可见 DOM 内容。
+- 在浏览器本地运行内置 PP-OCRv6 Tiny，不把图片或 OCR 文字发送给远程识别服务。
+- 支持全部图片、跳过封面和自定义页码三种识别范围。
+- 修复常见中英文空格、错误换行、段落结构和重复 OCR 内容。
+- 支持 Markdown 预览、手动编辑、复制、下载和写入 Obsidian。
+- 写入前检查 Obsidian 同名笔记，覆盖时必须确认。
+- 提供简体中文和英文界面，默认跟随 Chrome 的显示语言。
 
-OCR 默认关闭。扩展已经内置约 6 MB 的 PP-OCRv6 Tiny 模型，运行时不再下载模型，也不再读取浏览器模型缓存。启用 OCR 后，打开小红书笔记会提前预热引擎，并同时预取最多三张图片。进度卡会显示引擎初始化、逐图识别和文字汇总，并给出已用时间与预计剩余时间。你可以在图片之间暂停 OCR，也可以立即停止。图片只在本地处理。单张图片失败不会阻断其他图片；长图会先切块，再按原顺序合并文字。
-
-识别时间取决于图片数量和尺寸。首次使用需要初始化引擎，后续任务会复用已经加载的模型。VPN 仍可能拖慢小红书图片请求，但不会影响 OCR 模型是否可用。
-
-界面支持简体中文和英文，默认跟随 Chrome 的界面语言。Markdown 的 YAML 字段固定使用英文，正文和 OCR 原文不会自动翻译。
-
-## 当前范围
-
-- 支持当前打开的小红书图文笔记。
-- 优先读取页面结构化数据，失败时退回 DOM 提取。
-- 支持 Markdown 预览、手动编辑、复制和下载。
-- 支持可选的 PP-OCRv6 Tiny 浏览器本地 OCR。
-- 暂不支持评论、批量采集、博主关键词搜索、图片文件导出和 Obsidian 写入。
-
-小红书页面改版后，部分字段可能临时失效。遇到问题时请保留笔记链接，并说明缺少的是标题、正文、图片还是 OCR 文字。
-
-## 本地开发
+## 从源码安装
 
 需要 Node.js 20 以上版本和 pnpm。
 
@@ -42,10 +29,52 @@ pnpm install
 pnpm verify
 ```
 
-构建结果在 `dist`。Chrome 116 及以上版本可直接加载该目录。
+构建结果位于 `dist`。
 
-需要单独检查 OCR 时，运行 `pnpm dev`，再打开 `http://127.0.0.1:5173/tests/browser/ocr-smoke.html`。页面显示 `Passed` 代表中英混排识别和本地多线程 WASM 运行正常。
+1. 打开 `chrome://extensions/`。
+2. 打开右上角“开发者模式”。
+3. 点击“加载已解压的扩展程序”。
+4. 选择本项目的 `dist` 文件夹。
+5. 打开一篇小红书图文笔记，再点击扩展图标。
 
-核心模块分为 `SourceAdapter`、`OcrEngine` 和 `Exporter`。以后增加博主与关键词搜索、网页管理端或 Skill 入口时，可以继续复用相同的 `Note` 数据结构和 Markdown 导出逻辑。
+## OCR 使用方式
 
-OCR 使用 PP-OCRv6 tiny 模型和 Apache-2.0 许可的 `onnxruntime-web`。图片预处理与结果解码参考 PaddleOCR.js 的公开实现，并用 Canvas 和 TypeScript 替代 OpenCV。本项目参考了 Obsidian Web Clipper、Bilibili Obsidian Clipper、ChatGPT Exporter、xiaohongshu-mcp 和 xiaohongshu-skills 的产品流程或数据结构，没有直接复制其业务代码。
+OCR 可以随时关闭。扩展内置约 6 MB 的 PP-OCRv6 Tiny 模型，正常使用时不需要下载模型。第一次识别会初始化本地 ONNX 运行库，后续任务会复用已经加载的引擎。进度卡会显示初始化、逐图识别、文字汇总、已用时间和预计剩余时间。
+
+长图会先分块，再按原图顺序合并。单张图片失败不会中断剩余图片。后处理只修复排版和完全重复的内容，不会改写作者原文。
+
+## 写入 Obsidian
+
+直接写入依赖 Obsidian 社区插件 [Local REST API with MCP](https://github.com/coddingtonbear/obsidian-local-rest-api)。
+
+1. 在 Obsidian 中安装并启用该插件。
+2. 在插件设置里启用非加密 HTTP 服务。
+3. 点击 XHS Clipper 右上角的齿轮按钮。
+4. 填写笔记目录、本地 API 地址和 API Key。
+5. 保存设置并测试连接。
+
+默认目录为 `Clippings/Xiaohongshu`，默认地址为 `http://127.0.0.1:27123`。API Key 只保存在本机扩展存储中，插件只允许连接本机回环地址。
+
+## Markdown 内容
+
+文件包含固定结构的 YAML Frontmatter、笔记正文和按图片顺序排列的 OCR 文字。文件名格式为 `标题_作者_日期.md`。图片不会嵌入 Markdown，也不会作为文件下载。
+
+## 当前范围
+
+XHS Clipper 每次只处理用户当前打开的一篇小红书图文笔记。目前不采集评论，不搜索博主，不批量采集账号内容，不发布或互动，不下载图片文件，也不使用云端数据库。
+
+数据处理方式见[隐私说明](docs/PRIVACY.zh-CN.md)，浏览器权限用途见[权限说明](docs/PERMISSIONS.zh-CN.md)。
+
+## 本地开发
+
+```bash
+pnpm test
+pnpm build
+pnpm verify
+```
+
+代码按页面提取、OCR、文字后处理、Markdown 导出和 Obsidian 写入拆分。以后增加搜索或 Skill 入口时，可以继续使用现有 `Note` 数据结构，不需要改动导出模块。
+
+OCR 使用 PP-OCRv6 Tiny 模型和 Apache-2.0 许可的 `onnxruntime-web`。图片预处理与结果解码参考 PaddleOCR.js 的公开实现，并用 Canvas 和 TypeScript 替代 OpenCV。项目参考了 Obsidian Web Clipper、Bilibili Obsidian Clipper、ChatGPT Exporter、xiaohongshu-mcp 和 xiaohongshu-skills 的产品流程或数据结构，没有直接复制这些项目的业务代码。
+
+版本记录见 [CHANGELOG.md](CHANGELOG.md)。

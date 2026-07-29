@@ -10,6 +10,7 @@ function job(overrides: Partial<OcrJob> = {}): OcrJob {
   return {
     id: "job-1",
     noteId: "note-1",
+    imageIndexes: [0, 1, 2],
     imageUrls: ["1", "2", "3"],
     status: "running",
     current: 1,
@@ -23,7 +24,8 @@ function job(overrides: Partial<OcrJob> = {}): OcrJob {
     currentImageStartedAt: "2026-07-28T00:00:08.000Z",
     stageDurations: { "checking-cache": 100, "initializing-engine": 3_000 },
     updatedAt: "2026-07-28T00:00:08.000Z",
-    ...overrides
+    ...overrides,
+    pipelineVersion: overrides.pipelineVersion ?? 2
   };
 }
 

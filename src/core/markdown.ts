@@ -1,4 +1,5 @@
 import type { Note, OcrImageResult, UiLanguage } from "./types";
+import { cleanOcrImages } from "./ocr-postprocess";
 
 const headings = {
   "zh-CN": {
@@ -44,7 +45,11 @@ export function renderMarkdown(
 ): string {
   const t = headings[options.language];
   const successfulOcr = options.includeOcr
-    ? note.images.map((image) => image.ocr).filter((result) => Boolean(result?.text))
+    ? cleanOcrImages(
+        note.images
+          .map((image) => image.ocr)
+          .filter((result): result is OcrImageResult => Boolean(result?.text))
+      )
     : [];
   const frontmatter = [
     "---",
@@ -71,10 +76,10 @@ export function renderMarkdown(
     sections.push(`## ${t.body}\n\n${body}`);
   }
   if (successfulOcr.length > 0) {
-    const images = successfulOcr.map((result) => {
-      const value = result as OcrImageResult;
-      return `### ${t.image} ${value.imageIndex + 1}\n\n${cleanMarkdownText(value.text)}`;
-    });
+    const images = successfulOcr.map(
+      (result) =>
+        `### ${t.image} ${result.imageIndex + 1}\n\n${cleanMarkdownText(result.text)}`
+    );
     sections.push(`## ${t.imageText}\n\n${images.join("\n\n")}`);
   }
   return `${sections.join("\n\n")}\n`;

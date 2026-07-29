@@ -29,6 +29,7 @@ const activeJobs = new Set<string>();
 
 interface StageExtras {
   currentImage?: number;
+  currentSourceImage?: number;
   currentImageStartedAt?: string;
   bytesLoaded?: number;
   bytesTotal?: number;
@@ -236,7 +237,8 @@ async function recognizeImageWithInstance(
       lines.push(
         ...result.lines.map((line) => ({
           text: line.text.trim(),
-          score: line.score
+          score: line.score,
+          poly: line.poly.map(([x, y]) => [x, y + tile.top] as [number, number])
         }))
       );
     }
@@ -345,32 +347,41 @@ async function runRecognitionQueued(operation: () => Promise<void>): Promise<voi
 
 async function processJob(
   jobId: string,
-  imageUrls: string[]
+  images: Array<{ imageIndex: number; url: string }>
 ): Promise<void> {
   activeJobs.add(jobId);
   const jobStartedAt = performance.now();
   const tracker = createStageTracker(jobId);
   const prefetcher = createOrderedPrefetcher(
-    imageUrls,
-    (url) => downloadImage(url, jobId),
+    images,
+    (image) => downloadImage(image.url, jobId),
     IMAGE_PREFETCH_WINDOW
   );
   try {
     await tracker.report("loading-runtime", 5);
     const ocr = await getOcrInstance(jobId, tracker.report);
     await runRecognitionQueued(async () => {
-      for (let index = 0; index < imageUrls.length; index += 1) {
+      for (let index = 0; index < images.length; index += 1) {
         if (canceledJobs.has(jobId)) return;
         await waitUntilResumed(jobId);
         if (canceledJobs.has(jobId)) return;
         await tracker.report(
           "recognizing-images",
-          50 + Math.round((index / Math.max(1, imageUrls.length)) * 45),
-          { currentImage: index + 1, currentImageStartedAt: new Date().toISOString() }
+          50 + Math.round((index / Math.max(1, images.length)) * 45),
+          {
+            currentImage: index + 1,
+            currentSourceImage: (images[index]?.imageIndex ?? index) + 1,
+            currentImageStartedAt: new Date().toISOString()
+          }
         );
         const downloaded = await prefetcher.take(index);
         if (canceledJobs.has(jobId)) return;
-        const result = await recognizeImageWithInstance(ocr, downloaded, index, jobId);
+        const result = await recognizeImageWithInstance(
+          ocr,
+          downloaded,
+          images[index]?.imageIndex ?? index,
+          jobId
+        );
         if (canceledJobs.has(jobId)) return;
         await sendBackground({
           target: "background",
@@ -378,7 +389,7 @@ async function processJob(
           jobId,
           result,
           current: index + 1,
-          total: imageUrls.length
+          total: images.length
         });
       }
     });
@@ -443,7 +454,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   }
   if (request.type === "PROCESS_OCR") {
     const job = request as Extract<OffscreenRequest, { type: "PROCESS_OCR" }>;
-    void processJob(job.jobId, job.imageUrls);
+    void processJob(job.jobId, job.images);
     sendResponse({ accepted: true });
     return false;
   }

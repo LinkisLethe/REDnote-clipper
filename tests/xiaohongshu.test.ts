@@ -28,7 +28,7 @@ describe("extractXiaohongshuPage", () => {
             note: {
               noteId: "abc123",
               title: "测试笔记",
-              desc: "正文 #旅行",
+              desc: "正文 #旅行[话题]# #杭州[话题]#",
               time: 1_753_516_200_000,
               user: { userId: "u1", nickname: "作者" },
               interactInfo: { likedCount: "10", collectedCount: "3" },
@@ -126,7 +126,7 @@ describe("normalizeExtractedNote", () => {
         body: "正文",
         authorName: "作者",
         imageUrls: ["https://example.com/a.jpg"],
-        tags: ["旅行", "旅行"],
+        tags: ["旅行", "#旅行[话题]#", "旅行"],
         publishedAt: 1_753_516_200,
         metrics: {},
         source: "initial-state"

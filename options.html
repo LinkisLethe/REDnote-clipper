@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Obsidian export settings</title>
+  </head>
+  <body>
+    <main class="settings-shell">
+      <header class="settings-header">
+        <div class="brand-mark" aria-hidden="true">M</div>
+        <div>
+          <h1 data-i18n="settingsTitle">Obsidian 写入设置</h1>
+          <p data-i18n="settingsSubtitle">配置一次后，就能从采集器直接写入本地仓库。</p>
+        </div>
+      </header>
+
+      <section class="guide-card">
+        <h2 data-i18n="obsidianGuideTitle">首次配置</h2>
+        <ol>
+          <li>
+            <span data-i18n="obsidianGuideStep1">在 Obsidian 安装并启用 Local REST API with MCP 插件。</span>
+            <a href="https://github.com/coddingtonbear/obsidian-local-rest-api" target="_blank" rel="noreferrer">GitHub</a>
+          </li>
+          <li data-i18n="obsidianGuideStep2">在插件设置中启用非加密 HTTP 服务。</li>
+          <li data-i18n="obsidianGuideStep3">复制 API Key，填到下方后测试连接。</li>
+        </ol>
+      </section>
+
+      <form id="settingsForm" class="settings-card">
+        <label class="field" for="noteFolder">
+          <strong data-i18n="noteFolderLabel">笔记目录</strong>
+          <input
+            id="noteFolder"
+            type="text"
+            autocomplete="off"
+            data-i18n-placeholder="noteFolderPlaceholder"
+            placeholder="Clippings/Xiaohongshu"
+          />
+          <span data-i18n="noteFolderHint">例如 Clippings/Xiaohongshu，不需要填仓库名。</span>
+        </label>
+
+        <label class="field" for="apiBaseUrl">
+          <strong data-i18n="obsidianApiUrlLabel">Local REST API 地址</strong>
+          <input id="apiBaseUrl" type="url" inputmode="url" autocomplete="off" />
+          <span data-i18n="obsidianApiUrlHint">默认为 http://127.0.0.1:27123，只允许本机地址。</span>
+        </label>
+
+        <label class="field" for="apiKey">
+          <strong data-i18n="obsidianApiKeyLabel">Local REST API Key</strong>
+          <input id="apiKey" type="password" autocomplete="off" spellcheck="false" />
+          <span data-i18n="obsidianApiKeyHint">Key 只保存在这台电脑的 Chrome 插件存储中。</span>
+        </label>
+
+        <div id="settingsStatus" class="settings-status" aria-live="polite" hidden></div>
+        <div class="settings-actions">
+          <button id="saveButton" class="primary-button" type="submit" data-i18n="saveSettings">保存设置</button>
+          <button id="testButton" class="secondary-button" type="button" data-i18n="testConnection">测试连接</button>
+        </div>
+      </form>
+    </main>
+    <script type="module" src="/src/options.ts"></script>
+  </body>
+</html>

@@ -5,11 +5,22 @@ import type {
   OffscreenRequest,
   PopupJobUpdate
 } from "./core/types";
-import { shouldReuseOcrJob } from "./core/ocr-job";
+import { OCR_PIPELINE_VERSION, shouldReuseOcrJob } from "./core/ocr-job";
+import {
+  DEFAULT_OBSIDIAN_SETTINGS,
+  OBSIDIAN_API_KEY_KEY,
+  OBSIDIAN_SETTINGS_KEY,
+  createObsidianNotePath,
+  encodeObsidianVaultPath,
+  normalizeObsidianSettings,
+  validateObsidianSettings,
+  type ObsidianSettings
+} from "./core/obsidian";
 
 const OCR_JOB_KEY = "lastOcrJob";
 const OCR_ENABLED_KEY = "ocrEnabled";
 const OFFSCREEN_TIMEOUT_MS = 10_000;
+const OBSIDIAN_TIMEOUT_MS = 7_000;
 const XIAOHONGSHU_NOTE_URL =
   /^https:\/\/([^.]+\.)?xiaohongshu\.com\/(?:explore|discovery\/item)\//i;
 let creatingOffscreen: Promise<void> | null = null;
@@ -92,6 +103,113 @@ async function getJob(): Promise<OcrJob | undefined> {
   return value[OCR_JOB_KEY] as OcrJob | undefined;
 }
 
+async function fetchLocalObsidian(
+  url: string,
+  init: RequestInit,
+  timeoutMs = OBSIDIAN_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, cache: "no-store", signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("OBSIDIAN_CONNECTION_TIMEOUT");
+    }
+    throw new Error("OBSIDIAN_CONNECTION_FAILED");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function assertObsidianResponse(response: Response): void {
+  if (response.status === 401 || response.status === 403) {
+    throw new Error("OBSIDIAN_UNAUTHORIZED");
+  }
+  if (!response.ok) throw new Error(`OBSIDIAN_HTTP_ERROR:${response.status}`);
+}
+
+async function getStoredObsidianSettings() {
+  const [synced, local] = await Promise.all([
+    chrome.storage.sync.get(OBSIDIAN_SETTINGS_KEY),
+    chrome.storage.local.get(OBSIDIAN_API_KEY_KEY)
+  ]);
+  const stored = synced[OBSIDIAN_SETTINGS_KEY] as Partial<ObsidianSettings> | undefined;
+  const settings = normalizeObsidianSettings({
+    noteFolder: stored?.noteFolder || DEFAULT_OBSIDIAN_SETTINGS.noteFolder,
+    apiBaseUrl: stored?.apiBaseUrl || DEFAULT_OBSIDIAN_SETTINGS.apiBaseUrl,
+    apiKey: String(local[OBSIDIAN_API_KEY_KEY] || "")
+  });
+  if (validateObsidianSettings(settings)) throw new Error("OBSIDIAN_NOT_CONFIGURED");
+  return settings;
+}
+
+async function testObsidianConnection(
+  request: Extract<BackgroundRequest, { type: "TEST_OBSIDIAN_CONNECTION" }>
+): Promise<{ ok: true; service?: string }> {
+  const settings = normalizeObsidianSettings({
+    noteFolder: DEFAULT_OBSIDIAN_SETTINGS.noteFolder,
+    apiBaseUrl: request.apiBaseUrl,
+    apiKey: request.apiKey
+  });
+  const validationError = validateObsidianSettings(settings);
+  if (validationError) throw new Error(`OBSIDIAN_SETTINGS:${validationError}`);
+
+  try {
+    const response = await fetchLocalObsidian(`${settings.apiBaseUrl}/`, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${settings.apiKey}`
+      }
+    });
+    assertObsidianResponse(response);
+
+    const payload = (await response.json().catch(() => ({}))) as {
+      authenticated?: boolean;
+      service?: string;
+      name?: string;
+    };
+    if (payload.authenticated === false) throw new Error("OBSIDIAN_UNAUTHORIZED");
+    return { ok: true, service: payload.service || payload.name };
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("OBSIDIAN_")) throw error;
+    throw new Error("OBSIDIAN_CONNECTION_FAILED");
+  }
+}
+
+async function writeObsidianNote(
+  request: Extract<BackgroundRequest, { type: "WRITE_OBSIDIAN_NOTE" }>
+): Promise<{ ok: boolean; conflict?: true; path: string }> {
+  if (!request.markdown.trim()) throw new Error("OBSIDIAN_CONTENT_EMPTY");
+  const settings = await getStoredObsidianSettings();
+  const path = createObsidianNotePath(settings.noteFolder, request.filename);
+  const endpoint = `${settings.apiBaseUrl}/vault/${encodeObsidianVaultPath(path)}`;
+  const headers = {
+    Authorization: `Bearer ${settings.apiKey}`
+  };
+
+  const existing = await fetchLocalObsidian(endpoint, {
+    method: "GET",
+    headers: { ...headers, Accept: "text/markdown" }
+  });
+  if (existing.status === 401 || existing.status === 403) {
+    throw new Error("OBSIDIAN_UNAUTHORIZED");
+  }
+  if (existing.status !== 404 && !existing.ok) {
+    throw new Error(`OBSIDIAN_HTTP_ERROR:${existing.status}`);
+  }
+  if (existing.ok && !request.overwrite) return { ok: false, conflict: true, path };
+
+  const written = await fetchLocalObsidian(endpoint, {
+    method: "PUT",
+    headers: { ...headers, "Content-Type": "text/markdown; charset=utf-8" },
+    body: request.markdown
+  });
+  assertObsidianResponse(written);
+  return { ok: true, path };
+}
+
 async function hasActiveOcrJob(jobId: string): Promise<boolean> {
   if (!(await hasOffscreenDocument())) return false;
   try {
@@ -120,7 +238,27 @@ async function notifyPopup(job: OcrJob): Promise<void> {
   }
 }
 
-async function startOcr(note: Note): Promise<OcrJob> {
+function selectedOcrImages(
+  note: Note,
+  requestedIndexes: number[]
+): Array<{ imageIndex: number; url: string }> {
+  const imageIndexes = [...new Set(requestedIndexes)].sort((a, b) => a - b);
+  if (
+    imageIndexes.length === 0 ||
+    imageIndexes.some(
+      (index) => !Number.isInteger(index) || index < 0 || !note.images[index]?.url
+    )
+  ) {
+    throw new Error("OCR_IMAGE_SELECTION_INVALID");
+  }
+  return imageIndexes.map((imageIndex) => ({
+    imageIndex,
+    url: note.images[imageIndex]?.url || ""
+  }));
+}
+
+async function startOcr(note: Note, requestedIndexes: number[]): Promise<OcrJob> {
+  const selectedImages = selectedOcrImages(note, requestedIndexes);
   const previous = await getJob();
   if (
     previous &&
@@ -142,11 +280,13 @@ async function startOcr(note: Note): Promise<OcrJob> {
   const startedAt = new Date().toISOString();
   const job: OcrJob = {
     id: crypto.randomUUID(),
+    pipelineVersion: OCR_PIPELINE_VERSION,
     noteId: note.id,
-    imageUrls: note.images.map((image) => image.url),
+    imageIndexes: selectedImages.map((image) => image.imageIndex),
+    imageUrls: selectedImages.map((image) => image.url),
     status: "running",
     current: 0,
-    total: note.images.length,
+    total: selectedImages.length,
     results: note.images.map(() => null),
     stage: "loading-runtime",
     progress: 5,
@@ -161,7 +301,7 @@ async function startOcr(note: Note): Promise<OcrJob> {
     target: "offscreen",
     type: "PROCESS_OCR",
     jobId: job.id,
-    imageUrls: job.imageUrls
+    images: selectedImages
   };
   await withTimeout(
     chrome.runtime.sendMessage(request),
@@ -171,7 +311,7 @@ async function startOcr(note: Note): Promise<OcrJob> {
   return job;
 }
 
-async function restoreOrStartOcr(note: Note): Promise<OcrJob> {
+async function restoreOcr(note: Note): Promise<OcrJob | null> {
   const stored = await getJob();
   if (stored) {
     const workerActive = stored.status === "completed"
@@ -179,7 +319,7 @@ async function restoreOrStartOcr(note: Note): Promise<OcrJob> {
       : await hasActiveOcrJob(stored.id);
     if (shouldReuseOcrJob(stored, note, workerActive)) return stored;
   }
-  return startOcr(note);
+  return null;
 }
 
 async function updateStage(
@@ -194,6 +334,7 @@ async function updateStage(
     progress: Math.max(0, Math.min(100, message.progress)),
     stageStartedAt: message.stageStartedAt,
     currentImage: message.currentImage,
+    currentSourceImage: message.currentSourceImage,
     currentImageStartedAt: message.currentImageStartedAt,
     bytesLoaded: message.bytesLoaded,
     bytesTotal: message.bytesTotal,
@@ -332,14 +473,25 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
 
   let operation: Promise<unknown>;
   switch (request.type) {
-    case "RUN_OCR":
-      operation = startOcr(
-        (request as Extract<BackgroundRequest, { type: "RUN_OCR" }>).note
+    case "WRITE_OBSIDIAN_NOTE":
+      operation = writeObsidianNote(
+        request as Extract<BackgroundRequest, { type: "WRITE_OBSIDIAN_NOTE" }>
       );
       break;
-    case "RESTORE_OR_RUN_OCR":
-      operation = restoreOrStartOcr(
-        (request as Extract<BackgroundRequest, { type: "RESTORE_OR_RUN_OCR" }>).note
+    case "TEST_OBSIDIAN_CONNECTION":
+      operation = testObsidianConnection(
+        request as Extract<BackgroundRequest, { type: "TEST_OBSIDIAN_CONNECTION" }>
+      );
+      break;
+    case "RUN_OCR":
+      operation = (() => {
+        const run = request as Extract<BackgroundRequest, { type: "RUN_OCR" }>;
+        return startOcr(run.note, run.imageIndexes);
+      })();
+      break;
+    case "RESTORE_OCR":
+      operation = restoreOcr(
+        (request as Extract<BackgroundRequest, { type: "RESTORE_OCR" }>).note
       );
       break;
     case "CANCEL_OCR":

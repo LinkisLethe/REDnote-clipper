@@ -7,9 +7,12 @@ export interface NoteMetrics {
   sharedCount?: string;
 }
 
+export type OcrPoint = [number, number];
+
 export interface OcrLine {
   text: string;
   score: number;
+  poly?: OcrPoint[];
 }
 
 export interface OcrImageResult {
@@ -63,7 +66,9 @@ export interface Note {
 
 export interface OcrJob {
   id: string;
+  pipelineVersion: number;
   noteId: string;
+  imageIndexes: number[];
   imageUrls: string[];
   status:
     | "running"
@@ -81,6 +86,7 @@ export interface OcrJob {
   startedAt: string;
   stageStartedAt: string;
   currentImage?: number;
+  currentSourceImage?: number;
   currentImageStartedAt?: string;
   bytesLoaded?: number;
   bytesTotal?: number;
@@ -92,8 +98,26 @@ export interface OcrJob {
 }
 
 export type BackgroundRequest =
-  | { target: "background"; type: "RUN_OCR"; note: Note }
-  | { target: "background"; type: "RESTORE_OR_RUN_OCR"; note: Note }
+  | {
+      target: "background";
+      type: "TEST_OBSIDIAN_CONNECTION";
+      apiBaseUrl: string;
+      apiKey: string;
+    }
+  | {
+      target: "background";
+      type: "WRITE_OBSIDIAN_NOTE";
+      filename: string;
+      markdown: string;
+      overwrite?: boolean;
+    }
+  | {
+      target: "background";
+      type: "RUN_OCR";
+      note: Note;
+      imageIndexes: number[];
+    }
+  | { target: "background"; type: "RESTORE_OCR"; note: Note }
   | { target: "background"; type: "CANCEL_OCR"; jobId: string }
   | { target: "background"; type: "PAUSE_OCR"; jobId: string }
   | { target: "background"; type: "RESUME_OCR"; jobId: string }
@@ -106,6 +130,7 @@ export type BackgroundRequest =
       progress: number;
       stageStartedAt: string;
       currentImage?: number;
+      currentSourceImage?: number;
       currentImageStartedAt?: string;
       bytesLoaded?: number;
       bytesTotal?: number;
@@ -136,7 +161,7 @@ export type OffscreenRequest =
       target: "offscreen";
       type: "PROCESS_OCR";
       jobId: string;
-      imageUrls: string[];
+      images: Array<{ imageIndex: number; url: string }>;
     }
   | {
       target: "offscreen";

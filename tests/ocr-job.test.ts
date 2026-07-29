@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldReuseOcrJob } from "../src/core/ocr-job";
+import { OCR_PIPELINE_VERSION, shouldReuseOcrJob } from "../src/core/ocr-job";
 import type { Note, OcrJob } from "../src/core/types";
 
 const note: Note = {
@@ -9,7 +9,10 @@ const note: Note = {
   title: "Note",
   body: "Body",
   authorName: "Author",
-  images: [{ index: 0, url: "https://example.com/1.jpg" }],
+  images: [
+    { index: 0, url: "https://example.com/1.jpg" },
+    { index: 1, url: "https://example.com/2.jpg" }
+  ],
   tags: [],
   capturedAt: "2026-07-28T00:00:00.000Z",
   metrics: {},
@@ -19,12 +22,14 @@ const note: Note = {
 function job(status: OcrJob["status"]): OcrJob {
   return {
     id: "job-1",
+    pipelineVersion: OCR_PIPELINE_VERSION,
     noteId: note.id,
-    imageUrls: note.images.map((image) => image.url),
+    imageIndexes: [1],
+    imageUrls: [note.images[1]?.url || ""],
     status,
     current: 0,
     total: 1,
-    results: [null],
+    results: [null, null],
     stage: "checking-cache",
     progress: 0,
     startedAt: "2026-07-28T00:00:00.000Z",
@@ -47,8 +52,28 @@ describe("shouldReuseOcrJob", () => {
     expect(shouldReuseOcrJob(job("completed"), note, false)).toBe(true);
   });
 
+  it("matches a selected subset against its original image indexes", () => {
+    expect(shouldReuseOcrJob(job("completed"), note, false)).toBe(true);
+  });
+
+  it("reruns OCR when cached results were created by an older pipeline", () => {
+    expect(
+      shouldReuseOcrJob(
+        { ...job("completed"), pipelineVersion: OCR_PIPELINE_VERSION - 1 },
+        note,
+        false
+      )
+    ).toBe(false);
+  });
+
   it("rejects results belonging to another image set", () => {
-    const changed = { ...note, images: [{ index: 0, url: "https://example.com/2.jpg" }] };
+    const changed = {
+      ...note,
+      images: [
+        note.images[0]!,
+        { index: 1, url: "https://example.com/changed.jpg" }
+      ]
+    };
     expect(shouldReuseOcrJob(job("completed"), changed, false)).toBe(false);
   });
 });

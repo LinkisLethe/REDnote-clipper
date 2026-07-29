@@ -21,6 +21,15 @@ export interface ExtractionResponse {
   error?: "unsupported" | "not-found";
 }
 
+function normalizeXiaohongshuTag(value: string): string {
+  return value
+    .trim()
+    .replace(/^#+/, "")
+    .replace(/\[话题\]#*$/u, "")
+    .replace(/#+$/, "")
+    .trim();
+}
+
 export function extractXiaohongshuPage(): ExtractionResponse {
   type UnknownRecord = Record<string, unknown>;
 
@@ -76,15 +85,22 @@ export function extractXiaohongshuPage(): ExtractionResponse {
       )
     );
   };
+  const cleanTag = (value: string): string =>
+    value
+      .trim()
+      .replace(/^#+/, "")
+      .replace(/\[话题\]#*$/u, "")
+      .replace(/#+$/, "")
+      .trim();
   const dedupe = (values: string[]): string[] => [
-    ...new Set(values.map((value) => value.trim()).filter(Boolean))
+    ...new Set(values.map(cleanTag).filter(Boolean))
   ];
   const normalizeTags = (tagList: unknown, body: string): string[] => {
     const structured = Array.isArray(tagList)
       ? tagList.map((tag) => firstText(asRecord(tag)?.name, asRecord(tag)?.title))
       : [];
     const inline = [...body.matchAll(/#([^#\s]+)/g)].map((match) => match[1] || "");
-    return dedupe([...structured, ...inline].map((tag) => tag.replace(/^#/, "")));
+    return dedupe([...structured, ...inline]);
   };
   const normalizeMetrics = (interactValue: unknown): NoteMetrics => {
     const interact = asRecord(interactValue) || {};
@@ -273,7 +289,7 @@ export function normalizeExtractedNote(data: ExtractedXhsData, now = new Date())
     authorAvatar: data.authorAvatar,
     cover: images[0]?.url,
     images,
-    tags: [...new Set(data.tags.filter(Boolean))],
+    tags: [...new Set(data.tags.map(normalizeXiaohongshuTag).filter(Boolean))],
     publishedAt: toIsoDate(data.publishedAt),
     capturedAt: now.toISOString(),
     metrics: data.metrics,

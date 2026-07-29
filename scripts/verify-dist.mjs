@@ -6,6 +6,7 @@ const dist = resolve(root, "dist");
 const requiredFiles = [
   "manifest.json",
   "popup.html",
+  "options.html",
   "offscreen.html",
   "assets/background.js",
   "models/PP-OCRv6_tiny_det_onnx_infer.tar",
@@ -36,6 +37,9 @@ if (manifest.default_locale !== "zh_CN") throw new Error("default_locale must be
 if (manifest.background?.service_worker !== "assets/background.js") {
   throw new Error("Background service worker path does not match the build output");
 }
+if (manifest.options_page !== "options.html") {
+  throw new Error("Obsidian settings page is missing from the manifest");
+}
 if (!manifest.permissions?.includes("offscreen") || !manifest.permissions?.includes("downloads")) {
   throw new Error("Required Chrome permissions are missing");
 }
@@ -50,6 +54,14 @@ if (manifest.content_security_policy?.extension_pages?.includes("'unsafe-eval'")
 }
 if (manifest.host_permissions?.some((entry) => entry.includes("paddle-model-ecology"))) {
   throw new Error("Bundled OCR must not require the remote Paddle model host");
+}
+for (const permission of ["http://127.0.0.1/*", "http://localhost/*"]) {
+  if (!manifest.host_permissions?.includes(permission)) {
+    throw new Error(`Missing local Obsidian permission: ${permission}`);
+  }
+}
+if (manifest.host_permissions?.some((entry) => ["http://*/*", "https://*/*"].includes(entry))) {
+  throw new Error("Obsidian access must not grant a broad web host permission");
 }
 
 const localeFiles = ["zh_CN", "en"].map((locale) =>
@@ -81,8 +93,9 @@ if (!runtimeAssets.some((name) => name.endsWith(".wasm"))) {
 }
 
 const popupHtml = await readFile(resolve(dist, "popup.html"), "utf8");
+const optionsHtml = await readFile(resolve(dist, "options.html"), "utf8");
 const offscreenHtml = await readFile(resolve(dist, "offscreen.html"), "utf8");
-if (/\<script[^>]+src=["']https?:/i.test(`${popupHtml}\n${offscreenHtml}`)) {
+if (/\<script[^>]+src=["']https?:/i.test(`${popupHtml}\n${optionsHtml}\n${offscreenHtml}`)) {
   throw new Error("Extension pages must not load remote scripts");
 }
 

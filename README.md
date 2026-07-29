@@ -17,9 +17,9 @@ XHS Clipper is a Chrome Manifest V3 extension that exports the current Xiaohongs
 5. Open a Xiaohongshu image post and wait for the page to finish loading.
 6. Open the extension, review the Markdown preview, and select `Download .md`.
 
-OCR is disabled by default. The extension includes about 31 MB of PaddleOCR models, so OCR does not download models or use the browser model cache at runtime. The progress card shows engine initialization, per-image recognition, text combining, elapsed time, and an estimated remaining time. OCR can be paused between images or stopped immediately. Images are processed locally. A failed image does not stop the remaining images, and long images are split before their OCR text is merged in the original order.
+OCR is disabled by default. The extension includes about 6 MB of PP-OCRv6 Tiny models, so OCR does not download models or use the browser model cache at runtime. When OCR is enabled, opening a Xiaohongshu post prewarms the engine and prefetches up to three images. The progress card shows engine initialization, per-image recognition, text combining, elapsed time, and an estimated remaining time. OCR can be paused between images or stopped immediately. Images are processed locally. A failed image does not stop the remaining images, and long images are split before their OCR text is merged in the original order.
 
-A regular image usually takes about 5 to 15 seconds on a recent desktop. Long screenshots can take tens of seconds because they are split into several tiles. A VPN can still slow Xiaohongshu image requests, but it no longer affects OCR model availability.
+Recognition time depends on image count and dimensions. The first run initializes the engine; later jobs reuse the loaded models. A VPN can still slow Xiaohongshu image requests, but it no longer affects OCR model availability.
 
 The interface supports Simplified Chinese and English and follows Chrome's display language. YAML field names remain in English. Post content and OCR output are not translated.
 
@@ -28,7 +28,7 @@ The interface supports Simplified Chinese and English and follows Chrome's displ
 - Collect the currently open Xiaohongshu image post.
 - Prefer structured page data and fall back to DOM extraction.
 - Preview, edit, copy, and download plain-text Markdown.
-- Run optional PP-OCRv6 Small OCR in the browser.
+- Run optional PP-OCRv6 Tiny OCR in the browser.
 - Exclude comments, batch collection, creator keyword search, image export, and Obsidian integration for now.
 
 Xiaohongshu page changes may temporarily break individual fields. When reporting a problem, keep the post URL and note whether the missing part is the title, body, images, or OCR text.
@@ -44,8 +44,8 @@ pnpm verify
 
 The production build is written to `dist`. Chrome 116 or newer can load that directory directly.
 
-To check OCR separately, run `pnpm dev` and open `http://127.0.0.1:5173/tests/browser/ocr-smoke.html`. A `Passed` result verifies mixed Chinese and English recognition, the worker, and the local WASM runtime.
+To check OCR separately, run `pnpm dev` and open `http://127.0.0.1:5173/tests/browser/ocr-smoke.html`. A `Passed` result verifies mixed Chinese and English recognition with the local multithreaded WASM runtime.
 
 The core modules are separated into `SourceAdapter`, `OcrEngine`, and `Exporter`. Future creator search, keyword filtering, a web interface, or a Skill entry point can reuse the same `Note` data model and Markdown exporter.
 
-OCR uses the Apache-2.0 licensed `@paddleocr/paddleocr-js` package. Product flow and data-structure references include Obsidian Web Clipper, Bilibili Obsidian Clipper, ChatGPT Exporter, xiaohongshu-mcp, and xiaohongshu-skills. No business code was copied from those projects.
+OCR uses PP-OCRv6 tiny models with the Apache-2.0 licensed `onnxruntime-web` runtime. Image preprocessing and output decoding follow the public PaddleOCR.js implementation, with Canvas and TypeScript replacing OpenCV. Product flow and data-structure references include Obsidian Web Clipper, Bilibili Obsidian Clipper, ChatGPT Exporter, xiaohongshu-mcp, and xiaohongshu-skills. No business code was copied from those projects.

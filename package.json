@@ -1,17 +1,20 @@
 {
   "name": "rednote-markdown-collector",
-  "version": "0.2.0",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "benchmark:dev": "vite --config vite.benchmark.config.ts",
+    "benchmark:build": "tsc --noEmit -p tsconfig.benchmark.json && vite build --config vite.benchmark.config.ts",
+    "benchmark:preview": "vite preview --config vite.benchmark.config.ts --host 127.0.0.1 --port 4173",
+    "benchmark:start": "pnpm benchmark:build && pnpm benchmark:preview",
     "build": "tsc --noEmit && vite build",
     "verify": "pnpm test && pnpm build && node scripts/verify-dist.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@paddleocr/paddleocr-js": "0.4.2",
     "onnxruntime-web": "1.24.3"
   },
   "devDependencies": {

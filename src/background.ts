@@ -8,8 +8,12 @@ import type {
 import { shouldReuseOcrJob } from "./core/ocr-job";
 
 const OCR_JOB_KEY = "lastOcrJob";
+const OCR_ENABLED_KEY = "ocrEnabled";
 const OFFSCREEN_TIMEOUT_MS = 10_000;
+const XIAOHONGSHU_NOTE_URL =
+  /^https:\/\/([^.]+\.)?xiaohongshu\.com\/(?:explore|discovery\/item)\//i;
 let creatingOffscreen: Promise<void> | null = null;
+let prewarmingOcr: Promise<void> | null = null;
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -46,8 +50,8 @@ async function ensureOffscreenDocument(): Promise<void> {
     creatingOffscreen = withTimeout(
       chrome.offscreen.createDocument({
         url: "offscreen.html",
-        reasons: [chrome.offscreen.Reason.WORKERS, chrome.offscreen.Reason.BLOBS],
-        justification: "Run local OCR and process image blobs outside the popup."
+        reasons: [chrome.offscreen.Reason.BLOBS, chrome.offscreen.Reason.WORKERS],
+        justification: "Run local OCR workers and process image blobs outside the popup."
       }),
       OFFSCREEN_TIMEOUT_MS,
       "Creating the OCR background page timed out."
@@ -57,6 +61,26 @@ async function ensureOffscreenDocument(): Promise<void> {
       });
   }
   await creatingOffscreen;
+}
+
+async function prewarmOcrForUrl(url: string | undefined): Promise<void> {
+  if (!url || !XIAOHONGSHU_NOTE_URL.test(url)) return;
+  const settings = await chrome.storage.local.get(OCR_ENABLED_KEY);
+  if (!settings[OCR_ENABLED_KEY]) return;
+  if (!prewarmingOcr) {
+    prewarmingOcr = (async () => {
+      await ensureOffscreenDocument();
+      const request: OffscreenRequest = { target: "offscreen", type: "PREWARM_OCR" };
+      await withTimeout(
+        chrome.runtime.sendMessage(request),
+        OFFSCREEN_TIMEOUT_MS,
+        "Starting OCR prewarm timed out."
+      );
+    })().finally(() => {
+      prewarmingOcr = null;
+    });
+  }
+  await prewarmingOcr;
 }
 
 async function saveJob(job: OcrJob): Promise<void> {
@@ -124,7 +148,7 @@ async function startOcr(note: Note): Promise<OcrJob> {
     current: 0,
     total: note.images.length,
     results: note.images.map(() => null),
-    stage: "initializing-engine",
+    stage: "loading-runtime",
     progress: 5,
     startedAt,
     stageStartedAt: startedAt,
@@ -361,4 +385,12 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     sendResponse({ error: error instanceof Error ? error.message : String(error) });
   });
   return true;
+});
+
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  const url = changeInfo.url || tab.url;
+  if (!changeInfo.url && changeInfo.status !== "complete") return;
+  void prewarmOcrForUrl(url).catch((error) => {
+    console.warn("OCR prewarm was skipped", error);
+  });
 });

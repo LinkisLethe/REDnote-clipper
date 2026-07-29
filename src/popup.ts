@@ -7,7 +7,11 @@ import {
 import { createMarkdownFilename } from "./core/filename";
 import { createMessageGetter, getUiLanguage, localizeDocument } from "./core/i18n";
 import { applyOcrResults, renderMarkdown } from "./core/markdown";
-import { estimateRemainingMs, liveStageDurations } from "./core/ocr-progress";
+import {
+  estimateRemainingMs,
+  initializationDurationMs,
+  liveStageDurations
+} from "./core/ocr-progress";
 import { sameOcrJobSource } from "./core/ocr-job";
 import type {
   BackgroundRequest,
@@ -92,12 +96,33 @@ function formatDuration(durationMs: number): string {
   return message("durationMinutes", [String(Math.floor(seconds / 60)), String(Math.round(seconds % 60))]);
 }
 
+function localizeOcrError(error?: string): string {
+  if (!error) return message("ocrErrorUnknown");
+  const exactMessages: Record<string, string> = {
+    OCR_RUNTIME_LOAD_TIMEOUT: "ocrErrorRuntimeTimeout",
+    OCR_OPENCV_INIT_TIMEOUT: "ocrErrorOpenCvTimeout",
+    OCR_WEBGPU_PROBE_TIMEOUT: "ocrErrorWebGpuTimeout",
+    OCR_MODEL_READ_TIMEOUT: "ocrErrorModelTimeout",
+    OCR_SESSION_CREATE_TIMEOUT: "ocrErrorSessionTimeout",
+    OCR_SANDBOX_LOAD_TIMEOUT: "ocrErrorSandboxLoadTimeout",
+    OCR_SANDBOX_TIMEOUT: "ocrErrorSandboxTimeout",
+    OCR_PREDICTION_TIMEOUT: "ocrErrorPredictionTimeout",
+    OCR_OPENCV_INVALID_RUNTIME: "ocrErrorOpenCvInvalid"
+  };
+  const key = exactMessages[error];
+  if (key) return message(key);
+  if (error.startsWith("OCR_MODEL_READ_FAILED:")) return message("ocrErrorModelRead");
+  return error;
+}
+
 function stageMessage(job: OcrJob): string {
   if (job.status === "pausing") return message("ocrPausing");
   if (job.status === "paused") return message("ocrPaused");
   if (job.status === "completed") return message("ocrCompleted");
   if (job.status === "canceled") return message("ocrCanceled");
-  if (job.status === "error") return message("ocrFailed", job.error || "Unknown error");
+  if (job.status === "error") {
+    return message("ocrFailed", localizeOcrError(job.error || "Unknown error"));
+  }
   switch (job.stage) {
     case "checking-cache":
       return message("ocrStageChecking");
@@ -105,6 +130,16 @@ function stageMessage(job: OcrJob): string {
       return message("ocrStageDownloading");
     case "initializing-engine":
       return message("ocrStageInitializing");
+    case "loading-runtime":
+      return message("ocrStageRuntime");
+    case "initializing-opencv":
+      return message("ocrStageOpenCv");
+    case "probing-webgpu":
+      return message("ocrStageWebGpu");
+    case "loading-models":
+      return message("ocrStageModels");
+    case "creating-sessions":
+      return message("ocrStageSessions");
     case "recognizing-images":
       return message("ocrStageRecognizing", [
         String(job.currentImage || Math.min(job.current + 1, job.total)),
@@ -140,7 +175,16 @@ function renderOcrProgress(job: OcrJob): void {
   ocrProgressTrack.classList.toggle(
     "is-indeterminate",
     job.status === "running" &&
-      ["checking-cache", "initializing-engine", "finalizing"].includes(job.stage)
+      [
+        "checking-cache",
+        "initializing-engine",
+        "loading-runtime",
+        "initializing-opencv",
+        "probing-webgpu",
+        "loading-models",
+        "creating-sessions",
+        "finalizing"
+      ].includes(job.stage)
   );
   ocrElapsed.textContent = message("ocrElapsed", formatDuration(elapsedMs));
   ocrRemaining.textContent =
@@ -172,14 +216,14 @@ function renderOcrProgress(job: OcrJob): void {
   }
 
   const timingLabels = [
-    ["initializing-engine", "ocrTimeInitialize"],
-    ["recognizing-images", "ocrTimeRecognize"],
-    ["finalizing", "ocrTimeFinalize"]
+    ["ocrTimeInitialize", initializationDurationMs(durations)],
+    ["ocrTimeRecognize", durations["recognizing-images"] || 0],
+    ["ocrTimeFinalize", durations.finalizing || 0]
   ] as const;
   ocrStepTimings.replaceChildren(
-    ...timingLabels.map(([stage, key]) => {
+    ...timingLabels.map(([key, duration]) => {
       const item = document.createElement("span");
-      item.textContent = message(key, formatDuration(durations[stage] || 0));
+      item.textContent = message(key, formatDuration(duration));
       return item;
     })
   );
@@ -228,7 +272,7 @@ async function restoreOrStartOcr(): Promise<void> {
   };
   const response = (await chrome.runtime.sendMessage(request)) as OcrJob | { error: string };
   if ("error" in response) {
-    setStatus(message("ocrFailed", response.error), "error");
+    setStatus(message("ocrFailed", localizeOcrError(response.error)), "error");
     return;
   }
   applyJob(response);
@@ -341,7 +385,7 @@ async function handlePauseOcr(): Promise<void> {
     };
     const response = (await chrome.runtime.sendMessage(request)) as OcrJob | { error: string };
     if ("error" in response) {
-      setStatus(message("ocrFailed", response.error), "error");
+      setStatus(message("ocrFailed", localizeOcrError(response.error)), "error");
       return;
     }
     applyJob(response);
@@ -361,7 +405,7 @@ async function handleStopOcr(): Promise<void> {
     };
     const response = (await chrome.runtime.sendMessage(request)) as OcrJob | { error: string };
     if ("error" in response) {
-      setStatus(message("ocrFailed", response.error), "error");
+      setStatus(message("ocrFailed", localizeOcrError(response.error)), "error");
       return;
     }
     ocrToggle.checked = false;

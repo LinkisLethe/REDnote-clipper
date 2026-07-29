@@ -1,5 +1,7 @@
-import { PaddleOCR } from "@paddleocr/paddleocr-js";
-import type { OcrResult, OcrResultItem } from "@paddleocr/paddleocr-js";
+import {
+  BrowserOcrEngine,
+  decodeImageBlob
+} from "./core/browser-ocr-engine";
 import type {
   BackgroundRequest,
   OcrImageResult,
@@ -8,28 +10,21 @@ import type {
   OcrStageDurations,
   OffscreenRequest
 } from "./core/types";
+import { createOrderedPrefetcher } from "./core/ordered-prefetch";
 
-const ORT_JSEP_MJS_URL = new URL(
-  "../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs",
-  import.meta.url
-).href;
-const ORT_JSEP_WASM_URL = new URL(
-  "../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm",
-  import.meta.url
-).href;
-const MODEL_URLS = {
-  detection: chrome.runtime.getURL("models/PP-OCRv6_small_det_onnx_infer.tar"),
-  recognition: chrome.runtime.getURL("models/PP-OCRv6_small_rec_onnx_infer.tar")
-} as const;
+const IMAGE_PREFETCH_WINDOW = 3;
+const OCR_NUM_THREADS = 4;
+const OCR_RECOGNITION_BATCH_SIZE = 8;
 
-type OcrInstance = Awaited<ReturnType<typeof PaddleOCR.create>>;
+type OcrInstance = BrowserOcrEngine;
 let instancePromise: Promise<OcrInstance> | null = null;
 let instanceReady = false;
+let engineGeneration = 0;
 let recognitionQueue = Promise.resolve();
 const canceledJobs = new Set<string>();
 const pausedJobs = new Set<string>();
 const resumeWaiters = new Map<string, () => void>();
-const imageDownloadControllers = new Map<string, AbortController>();
+const imageDownloadControllers = new Map<string, Set<AbortController>>();
 const activeJobs = new Set<string>();
 
 interface StageExtras {
@@ -54,6 +49,17 @@ interface InitializationState {
 
 const initializationSubscribers = new Map<string, StageReporter>();
 let initializationState: InitializationState | null = null;
+
+function resetOcrEngine(): void {
+  const pendingInstance = instancePromise;
+  engineGeneration += 1;
+  instancePromise = null;
+  instanceReady = false;
+  initializationState = null;
+  if (pendingInstance) {
+    void pendingInstance.then((instance) => instance.dispose()).catch(() => undefined);
+  }
+}
 
 async function reportInitialization(
   stage: OcrStage,
@@ -81,47 +87,57 @@ async function getOcrInstance(
       initializationState.extras
     );
   }
+  try {
+    return await ensureOcrInstance();
+  } finally {
+    initializationSubscribers.delete(jobId);
+  }
+}
+
+function ensureOcrInstance(): Promise<OcrInstance> {
   if (!instancePromise) {
+    const generation = engineGeneration;
     instancePromise = (async () => {
-      await reportInitialization("initializing-engine", 5);
-      const instance = await PaddleOCR.create({
-        textDetectionModelName: "PP-OCRv6_small_det",
-        textDetectionModelAsset: { url: MODEL_URLS.detection },
-        textRecognitionModelName: "PP-OCRv6_small_rec",
-        textRecognitionModelAsset: { url: MODEL_URLS.recognition },
-        worker: true,
-        ortOptions: {
-          backend: "wasm",
-          wasmPaths: {
-            mjs: ORT_JSEP_MJS_URL,
-            wasm: ORT_JSEP_WASM_URL
-          } as unknown as string,
-          numThreads: 1,
-          simd: true
-        },
-        textDetectionBatchSize: 1,
-        textRecognitionBatchSize: 8
+      await reportInitialization("loading-runtime", 5);
+      const instance = new BrowserOcrEngine({
+        numThreads: OCR_NUM_THREADS,
+        recognitionBatchSize: OCR_RECOGNITION_BATCH_SIZE
       });
+      let initializationStep = 0;
+      await instance.initialize(() => {
+        initializationStep += 1;
+        if (initializationStep === 1) {
+          void reportInitialization("loading-models", 25);
+        } else {
+          void reportInitialization("creating-sessions", Math.min(45, 29 + initializationStep * 5));
+        }
+      });
+      if (generation !== engineGeneration) {
+        await instance.dispose();
+        throw new Error("OCR_INITIALIZATION_ABORTED");
+      }
       instanceReady = true;
       initializationState = null;
       return instance;
-    })().catch(async (error) => {
+    })().catch((error) => {
       instancePromise = null;
       instanceReady = false;
       initializationState = null;
       throw error;
     });
   }
-  try {
-    return await instancePromise;
-  } finally {
-    initializationSubscribers.delete(jobId);
-  }
+  return instancePromise;
 }
 
 interface ImageTile {
   blob: Blob;
   top: number;
+}
+
+interface DownloadedImage {
+  blob?: Blob;
+  durationMs: number;
+  error?: string;
 }
 
 async function canvasToBlob(canvas: OffscreenCanvas, type: string): Promise<Blob> {
@@ -151,23 +167,6 @@ async function splitLongImage(blob: Blob): Promise<ImageTile[]> {
   }
 }
 
-function itemPosition(item: OcrResultItem): [number, number] {
-  const xs = item.poly.map((point) => point[0]);
-  const ys = item.poly.map((point) => point[1]);
-  return [Math.min(...ys), Math.min(...xs)];
-}
-
-function orderedLines(result: OcrResult): OcrLine[] {
-  return [...result.items]
-    .filter((item) => item.text.trim())
-    .sort((left, right) => {
-      const [leftY, leftX] = itemPosition(left);
-      const [rightY, rightX] = itemPosition(right);
-      return Math.abs(leftY - rightY) < 12 ? leftX - rightX : leftY - rightY;
-    })
-    .map((item) => ({ text: item.text.trim(), score: item.score }));
-}
-
 function dedupeAdjacentLines(lines: OcrLine[]): OcrLine[] {
   const output: OcrLine[] = [];
   const normalize = (value: string) => value.replace(/[\s，。！？、,.!?;；:：]/g, "").toLowerCase();
@@ -182,29 +181,64 @@ function dedupeAdjacentLines(lines: OcrLine[]): OcrLine[] {
   return output;
 }
 
-async function recognizeImageWithInstance(
-  ocr: OcrInstance,
-  url: string,
-  imageIndex: number,
-  jobId: string
-): Promise<OcrImageResult> {
+function addDownloadController(jobId: string, controller: AbortController): void {
+  const controllers = imageDownloadControllers.get(jobId) || new Set<AbortController>();
+  controllers.add(controller);
+  imageDownloadControllers.set(jobId, controllers);
+}
+
+function removeDownloadController(jobId: string, controller: AbortController): void {
+  const controllers = imageDownloadControllers.get(jobId);
+  if (!controllers) return;
+  controllers.delete(controller);
+  if (controllers.size === 0) imageDownloadControllers.delete(jobId);
+}
+
+async function downloadImage(url: string, jobId: string): Promise<DownloadedImage> {
   const startedAt = performance.now();
+  if (!url) return { durationMs: 0, error: "Image URL is missing." };
   const controller = new AbortController();
-  imageDownloadControllers.set(jobId, controller);
+  addDownloadController(jobId, controller);
   const timeout = setTimeout(() => controller.abort(), 30_000);
   try {
     const response = await fetch(url, { credentials: "omit", signal: controller.signal });
     if (!response.ok) throw new Error(`Image download failed: HTTP ${response.status}`);
-    const tiles = await splitLongImage(await response.blob());
+    return {
+      blob: await response.blob(),
+      durationMs: Math.round(performance.now() - startedAt)
+    };
+  } catch (error) {
+    return {
+      durationMs: Math.round(performance.now() - startedAt),
+      error: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    clearTimeout(timeout);
+    removeDownloadController(jobId, controller);
+  }
+}
+
+async function recognizeImageWithInstance(
+  ocr: OcrInstance,
+  downloaded: DownloadedImage,
+  imageIndex: number,
+  jobId: string
+): Promise<OcrImageResult> {
+  const startedAt = performance.now();
+  try {
+    if (!downloaded.blob) throw new Error(downloaded.error || "Image download failed.");
+    const tiles = await splitLongImage(downloaded.blob);
     const lines: OcrLine[] = [];
     for (const tile of tiles) {
-      const [result] = await ocr.predict(tile.blob, {
-        textDetLimitSideLen: 1280,
-        textDetLimitType: "max",
-        textDetMaxSideLimit: 4096,
-        textRecScoreThresh: 0
-      });
-      if (result) lines.push(...orderedLines(result));
+      if (canceledJobs.has(jobId)) break;
+      const image = await decodeImageBlob(tile.blob);
+      const result = await ocr.recognize(image);
+      lines.push(
+        ...result.lines.map((line) => ({
+          text: line.text.trim(),
+          score: line.score
+        }))
+      );
     }
     const cleaned = dedupeAdjacentLines(lines);
     return {
@@ -212,7 +246,7 @@ async function recognizeImageWithInstance(
       text: cleaned.map((line) => line.text).join("\n"),
       lines: cleaned,
       status: cleaned.length > 0 ? "success" : "empty",
-      durationMs: Math.round(performance.now() - startedAt)
+      durationMs: downloaded.durationMs + Math.round(performance.now() - startedAt)
     };
   } catch (error) {
     return {
@@ -220,12 +254,9 @@ async function recognizeImageWithInstance(
       text: "",
       lines: [],
       status: "error",
-      durationMs: Math.round(performance.now() - startedAt),
+      durationMs: downloaded.durationMs + Math.round(performance.now() - startedAt),
       error: error instanceof Error ? error.message : String(error)
     };
-  } finally {
-    clearTimeout(timeout);
-    imageDownloadControllers.delete(jobId);
   }
 }
 
@@ -277,15 +308,18 @@ function createStageTracker(jobId: string): {
   };
 }
 
-function cancelJob(jobId: string): void {
+function cancelJob(jobId: string, abortInitialization = false): void {
   canceledJobs.add(jobId);
   pausedJobs.delete(jobId);
   initializationSubscribers.delete(jobId);
-  imageDownloadControllers.get(jobId)?.abort();
+  for (const controller of imageDownloadControllers.get(jobId) || []) controller.abort();
   imageDownloadControllers.delete(jobId);
   const resume = resumeWaiters.get(jobId);
   if (resume) resume();
   resumeWaiters.delete(jobId);
+  if (abortInitialization && instancePromise && !instanceReady) {
+    resetOcrEngine();
+  }
 }
 
 function resumeJob(jobId: string): void {
@@ -316,22 +350,27 @@ async function processJob(
   activeJobs.add(jobId);
   const jobStartedAt = performance.now();
   const tracker = createStageTracker(jobId);
+  const prefetcher = createOrderedPrefetcher(
+    imageUrls,
+    (url) => downloadImage(url, jobId),
+    IMAGE_PREFETCH_WINDOW
+  );
   try {
-    await tracker.report("initializing-engine", 5);
+    await tracker.report("loading-runtime", 5);
     const ocr = await getOcrInstance(jobId, tracker.report);
     await runRecognitionQueued(async () => {
       for (let index = 0; index < imageUrls.length; index += 1) {
         if (canceledJobs.has(jobId)) return;
         await waitUntilResumed(jobId);
         if (canceledJobs.has(jobId)) return;
-        const url = imageUrls[index];
-        if (!url) continue;
         await tracker.report(
           "recognizing-images",
           50 + Math.round((index / Math.max(1, imageUrls.length)) * 45),
           { currentImage: index + 1, currentImageStartedAt: new Date().toISOString() }
         );
-        const result = await recognizeImageWithInstance(ocr, url, index, jobId);
+        const downloaded = await prefetcher.take(index);
+        if (canceledJobs.has(jobId)) return;
+        const result = await recognizeImageWithInstance(ocr, downloaded, index, jobId);
         if (canceledJobs.has(jobId)) return;
         await sendBackground({
           target: "background",
@@ -376,7 +415,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   if (request.target !== "offscreen") return false;
   if (request.type === "CANCEL_OCR") {
     const cancel = request as Extract<OffscreenRequest, { type: "CANCEL_OCR" }>;
-    cancelJob(cancel.jobId);
+    cancelJob(cancel.jobId, Boolean(cancel.abortInitialization));
     sendResponse({ accepted: true });
     return false;
   }
@@ -393,6 +432,13 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   if (request.type === "HAS_OCR_JOB") {
     const jobId = (request as Extract<OffscreenRequest, { type: "HAS_OCR_JOB" }>).jobId;
     sendResponse({ active: activeJobs.has(jobId) });
+    return false;
+  }
+  if (request.type === "PREWARM_OCR") {
+    void ensureOcrInstance().catch((error) => {
+      console.error("OCR prewarm failed", error);
+    });
+    sendResponse({ accepted: true });
     return false;
   }
   if (request.type === "PROCESS_OCR") {

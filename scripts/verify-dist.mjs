@@ -8,14 +8,26 @@ const requiredFiles = [
   "popup.html",
   "offscreen.html",
   "assets/background.js",
-  "models/PP-OCRv6_small_det_onnx_infer.tar",
-  "models/PP-OCRv6_small_rec_onnx_infer.tar",
+  "models/PP-OCRv6_tiny_det_onnx_infer.tar",
+  "models/PP-OCRv6_tiny_rec_onnx_infer.tar",
   "_locales/zh_CN/messages.json",
   "_locales/en/messages.json"
 ];
 
 for (const file of requiredFiles) {
   await access(resolve(dist, file));
+}
+
+for (const file of [
+  "models/PP-OCRv6_small_det_onnx_infer.tar",
+  "models/PP-OCRv6_small_rec_onnx_infer.tar"
+]) {
+  try {
+    await access(resolve(dist, file));
+    throw new Error(`Unused OCR model must not be included: ${file}`);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Unused OCR model")) throw error;
+  }
 }
 
 const manifest = JSON.parse(await readFile(resolve(dist, "manifest.json"), "utf8"));
@@ -26,6 +38,15 @@ if (manifest.background?.service_worker !== "assets/background.js") {
 }
 if (!manifest.permissions?.includes("offscreen") || !manifest.permissions?.includes("downloads")) {
   throw new Error("Required Chrome permissions are missing");
+}
+if (manifest.cross_origin_embedder_policy?.value !== "require-corp") {
+  throw new Error("The extension must enable cross-origin embedding isolation");
+}
+if (manifest.cross_origin_opener_policy?.value !== "same-origin") {
+  throw new Error("The extension must enable cross-origin opener isolation");
+}
+if (manifest.content_security_policy?.extension_pages?.includes("'unsafe-eval'")) {
+  throw new Error("Privileged extension pages must not allow unsafe-eval");
 }
 if (manifest.host_permissions?.some((entry) => entry.includes("paddle-model-ecology"))) {
   throw new Error("Bundled OCR must not require the remote Paddle model host");
@@ -45,9 +66,12 @@ if (JSON.stringify(zhKeys) !== JSON.stringify(enKeys)) {
 
 const assetNames = await readdir(resolve(dist, "assets"));
 const workerName = assetNames.find((name) => name.startsWith("worker-entry-") && name.endsWith(".js"));
-if (!workerName) throw new Error("PaddleOCR worker was not emitted");
+if (workerName) throw new Error("Unused PaddleOCR worker must not be included");
+if (assetNames.some((name) => /^opencv-.+\.js$/.test(name))) {
+  throw new Error("OpenCV must not be included in the lightweight OCR build");
+}
 const runtimeAssets = assetNames.filter((name) =>
-  /^ort-wasm-simd-threaded\.jsep-.+\.(?:mjs|wasm)$/.test(name)
+  /^ort-wasm-simd-threaded-.+\.(?:mjs|wasm)$/.test(name)
 );
 if (!runtimeAssets.some((name) => name.endsWith(".mjs"))) {
   throw new Error("Local ONNX Runtime module was not emitted");
@@ -66,13 +90,13 @@ const totalBytes = (
   await Promise.all(runtimeAssets.map(async (file) => (await stat(resolve(dist, "assets", file))).size))
 ).reduce((sum, size) => sum + size, 0);
 const modelFiles = [
-  "PP-OCRv6_small_det_onnx_infer.tar",
-  "PP-OCRv6_small_rec_onnx_infer.tar"
+  "PP-OCRv6_tiny_det_onnx_infer.tar",
+  "PP-OCRv6_tiny_rec_onnx_infer.tar"
 ];
 const modelBytes = (
   await Promise.all(modelFiles.map(async (file) => (await stat(resolve(dist, "models", file))).size))
 ).reduce((sum, size) => sum + size, 0);
-if (modelBytes < 30_000_000) throw new Error("Bundled OCR model files are incomplete");
+if (modelBytes < 6_000_000) throw new Error("Bundled OCR model files are incomplete");
 
 console.log(
   `Verified MV3 build, ${zhKeys.length} bilingual messages, ${runtimeAssets.length} OCR runtime assets, ${(totalBytes / 1024 / 1024).toFixed(1)} MiB local ORT runtime, ${(modelBytes / 1024 / 1024).toFixed(1)} MiB bundled OCR models.`

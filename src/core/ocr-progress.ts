@@ -1,8 +1,26 @@
 import type { OcrJob, OcrStageDurations } from "./types";
 
-const DEFAULT_INITIALIZATION_MS = 6_000;
-const DEFAULT_IMAGE_MS = 5_000;
-const DEFAULT_FINALIZATION_MS = 500;
+const DEFAULT_INITIALIZATION_MS = 500;
+const DEFAULT_RUNTIME_LOAD_MS = 50;
+const DEFAULT_MODEL_READ_MS = 150;
+const DEFAULT_SESSION_CREATE_MS = 300;
+const DEFAULT_IMAGE_MS = 500;
+const DEFAULT_FINALIZATION_MS = 100;
+
+const INITIALIZATION_STAGES = [
+  "loading-runtime",
+  "initializing-opencv",
+  "probing-webgpu",
+  "loading-models",
+  "creating-sessions"
+] as const;
+
+export function initializationDurationMs(durations: OcrStageDurations): number {
+  return INITIALIZATION_STAGES.reduce(
+    (total, stage) => total + (durations[stage] || 0),
+    0
+  );
+}
 
 function timestamp(value: string | undefined): number {
   const parsed = value ? Date.parse(value) : Number.NaN;
@@ -58,6 +76,35 @@ export function estimateRemainingMs(job: OcrJob, now = Date.now()): number | und
     case "initializing-engine":
       return (
         Math.max(0, DEFAULT_INITIALIZATION_MS - stageElapsed) +
+        recognitionRemaining +
+        DEFAULT_FINALIZATION_MS
+      );
+    case "loading-runtime":
+      return (
+        Math.max(0, DEFAULT_RUNTIME_LOAD_MS - stageElapsed) +
+        DEFAULT_MODEL_READ_MS +
+        DEFAULT_SESSION_CREATE_MS +
+        recognitionRemaining +
+        DEFAULT_FINALIZATION_MS
+      );
+    case "initializing-opencv":
+    case "probing-webgpu":
+      return (
+        DEFAULT_MODEL_READ_MS +
+        DEFAULT_SESSION_CREATE_MS +
+        recognitionRemaining +
+        DEFAULT_FINALIZATION_MS
+      );
+    case "loading-models":
+      return (
+        Math.max(0, DEFAULT_MODEL_READ_MS - stageElapsed) +
+        DEFAULT_SESSION_CREATE_MS +
+        recognitionRemaining +
+        DEFAULT_FINALIZATION_MS
+      );
+    case "creating-sessions":
+      return (
+        Math.max(0, DEFAULT_SESSION_CREATE_MS - stageElapsed) +
         recognitionRemaining +
         DEFAULT_FINALIZATION_MS
       );

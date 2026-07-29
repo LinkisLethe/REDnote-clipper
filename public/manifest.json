@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
   "description": "__MSG_extensionDescription__",
-  "version": "0.2.0",
+  "version": "0.3.2",
   "minimum_chrome_version": "116",
   "default_locale": "zh_CN",
   "action": {
@@ -17,7 +17,6 @@
     "activeTab",
     "scripting",
     "storage",
-    "unlimitedStorage",
     "offscreen",
     "downloads",
     "clipboardWrite"
@@ -27,6 +26,12 @@
     "https://*.xiaohongshu.com/*",
     "https://*.xhscdn.com/*"
   ],
+  "cross_origin_embedder_policy": {
+    "value": "require-corp"
+  },
+  "cross_origin_opener_policy": {
+    "value": "same-origin"
+  },
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   }

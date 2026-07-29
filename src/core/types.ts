@@ -25,6 +25,11 @@ export type OcrStage =
   | "checking-cache"
   | "downloading-models"
   | "initializing-engine"
+  | "loading-runtime"
+  | "initializing-opencv"
+  | "probing-webgpu"
+  | "loading-models"
+  | "creating-sessions"
   | "recognizing-images"
   | "finalizing";
 
@@ -126,6 +131,7 @@ export type BackgroundRequest =
     };
 
 export type OffscreenRequest =
+  | { target: "offscreen"; type: "PREWARM_OCR" }
   | {
       target: "offscreen";
       type: "PROCESS_OCR";

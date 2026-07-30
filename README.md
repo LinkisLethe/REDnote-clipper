@@ -4,6 +4,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
 [![OCR](https://img.shields.io/badge/OCR-PP--OCRv6-0C7BDC?style=flat-square)](https://github.com/PaddlePaddle/PaddleOCR)
 [![Version](https://img.shields.io/badge/version-0.4.0-D8473E?style=flat-square)](https://github.com/LinkisLethe/xhs-clipper)
+[![License](https://img.shields.io/badge/license-Apache--2.0-7B68EE?style=flat-square)](LICENSE)
 
 [中文说明](README.zh-CN.md)
 
@@ -65,6 +66,12 @@ XHS Clipper handles one user-opened Xiaohongshu image post at a time. It does no
 
 See the [privacy policy](docs/PRIVACY.md) and [permission reference](docs/PERMISSIONS.md) for the data and browser-access details.
 
+## Responsible use
+
+XHS Clipper is an independent, unofficial project and is not affiliated with, endorsed by, or sponsored by Xiaohongshu. Xiaohongshu and related names and marks belong to their respective owners.
+
+Use the extension only for content you are permitted to access and process. You are responsible for following applicable laws, copyright rules, and platform terms. Do not use it to republish, sell, or distribute other people's content without permission.
+
 ## Development
 
 ```bash
@@ -75,6 +82,6 @@ pnpm verify
 
 The code is split into page extraction, OCR, post-processing, Markdown export, and Obsidian integration modules. Future search or Skill entry points can reuse the same `Note` data model without changing the exporter.
 
-OCR uses PP-OCRv6 Tiny models and the Apache-2.0 licensed `onnxruntime-web` runtime. Image preprocessing and output decoding follow the public PaddleOCR.js implementation, with Canvas and TypeScript replacing OpenCV. Product and data-structure references include Obsidian Web Clipper, Bilibili Obsidian Clipper, ChatGPT Exporter, xiaohongshu-mcp, and xiaohongshu-skills. Their business code was not copied into this project.
+OCR uses Apache-2.0 licensed PP-OCRv6 Tiny models and the MIT licensed `onnxruntime-web` runtime. Image preprocessing and output decoding follow the public PaddleOCR.js behavior, with Canvas and TypeScript replacing OpenCV. Product and data-structure references include Obsidian Web Clipper, Bilibili Obsidian Clipper, ChatGPT Exporter, xiaohongshu-mcp, and xiaohongshu-skills. Their business code was not copied into this project.
 
-See [CHANGELOG.md](CHANGELOG.md) for version history.
+XHS Clipper is licensed under the [Apache License 2.0](LICENSE). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for model, runtime, and attribution details, and [CHANGELOG.md](CHANGELOG.md) for version history.

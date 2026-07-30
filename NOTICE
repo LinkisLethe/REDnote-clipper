@@ -1,0 +1,8 @@
+XHS Clipper
+Copyright 2026 Hongjia LIN
+
+This product includes PP-OCRv6 Tiny model files from PaddleOCR,
+Copyright PaddlePaddle Authors, licensed under the Apache License 2.0.
+
+This product uses ONNX Runtime Web, Copyright Microsoft Corporation,
+licensed under the MIT License.

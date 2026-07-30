@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Licensed the project under Apache License 2.0 with Hongjia LIN as the copyright holder.
+- Added third-party notices for PaddleOCR models and ONNX Runtime Web.
+- Added responsible-use and unofficial-project notices to both READMEs.
+- Removed unused PP-OCRv6 Small model files from the repository.
+
 ## 0.4.0 - 2026-07-29
 
 ### Added

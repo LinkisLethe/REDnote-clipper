@@ -4,6 +4,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
 [![OCR](https://img.shields.io/badge/OCR-PP--OCRv6-0C7BDC?style=flat-square)](https://github.com/PaddlePaddle/PaddleOCR)
 [![Version](https://img.shields.io/badge/version-0.4.0-D8473E?style=flat-square)](https://github.com/LinkisLethe/xhs-clipper)
+[![License](https://img.shields.io/badge/license-Apache--2.0-7B68EE?style=flat-square)](LICENSE)
 
 [English](README.md)
 
@@ -65,6 +66,12 @@ XHS Clipper 每次只处理用户当前打开的一篇小红书图文笔记。�
 
 数据处理方式见[隐私说明](docs/PRIVACY.zh-CN.md)，浏览器权限用途见[权限说明](docs/PERMISSIONS.zh-CN.md)。
 
+## 使用边界
+
+XHS Clipper 是独立开发的非官方项目，与小红书不存在隶属、认可或赞助关系。小红书及相关名称和标识归其权利人所有。
+
+请只处理你有权访问和使用的内容，并自行遵守适用法律、版权规则和平台条款。未经许可，不要用本项目转载、出售或传播他人的内容。
+
 ## 本地开发
 
 ```bash
@@ -75,6 +82,6 @@ pnpm verify
 
 代码按页面提取、OCR、文字后处理、Markdown 导出和 Obsidian 写入拆分。以后增加搜索或 Skill 入口时，可以继续使用现有 `Note` 数据结构，不需要改动导出模块。
 
-OCR 使用 PP-OCRv6 Tiny 模型和 Apache-2.0 许可的 `onnxruntime-web`。图片预处理与结果解码参考 PaddleOCR.js 的公开实现，并用 Canvas 和 TypeScript 替代 OpenCV。项目参考了 Obsidian Web Clipper、Bilibili Obsidian Clipper、ChatGPT Exporter、xiaohongshu-mcp 和 xiaohongshu-skills 的产品流程或数据结构，没有直接复制这些项目的业务代码。
+OCR 使用 Apache-2.0 许可的 PP-OCRv6 Tiny 模型和 MIT 许可的 `onnxruntime-web`。图片预处理与结果解码参考 PaddleOCR.js 的公开行为，并用 Canvas 和 TypeScript 替代 OpenCV。项目参考了 Obsidian Web Clipper、Bilibili Obsidian Clipper、ChatGPT Exporter、xiaohongshu-mcp 和 xiaohongshu-skills 的产品流程或数据结构，没有直接复制这些项目的业务代码。
 
-版本记录见 [CHANGELOG.md](CHANGELOG.md)。
+XHS Clipper 采用 [Apache License 2.0](LICENSE)。模型、运行库和署名信息见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)，版本记录见 [CHANGELOG.md](CHANGELOG.md)。

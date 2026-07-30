@@ -41,7 +41,11 @@ After installation, pin XHS Clipper to the Chrome toolbar. Open a Xiaohongshu im
 
 The popup first reads the post body and metadata. Turn on **Recognize text in images**, choose the pages you need, then select **Start OCR** or **Run OCR again**.
 
-![OCR range, progress, and Markdown preview](docs/images/popup-overview.png)
+<img
+  src="docs/images/popup-overview.png"
+  alt="OCR range, progress, and Markdown preview"
+  width="520"
+/>
 
 The first OCR job initializes the local ONNX runtime. Later jobs reuse the loaded engine. Long images are divided into smaller sections and merged in source order. If one image fails, the extension continues with the remaining images.
 

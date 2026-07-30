@@ -5,7 +5,11 @@ import type {
   OffscreenRequest,
   PopupJobUpdate
 } from "./core/types";
-import { OCR_PIPELINE_VERSION, shouldReuseOcrJob } from "./core/ocr-job";
+import {
+  OCR_ENABLED_KEY,
+  OCR_PIPELINE_VERSION,
+  shouldReuseOcrJob
+} from "./core/ocr-job";
 import {
   DEFAULT_OBSIDIAN_SETTINGS,
   OBSIDIAN_API_KEY_KEY,
@@ -18,7 +22,6 @@ import {
 } from "./core/obsidian";
 
 const OCR_JOB_KEY = "lastOcrJob";
-const OCR_ENABLED_KEY = "ocrEnabled";
 const OFFSCREEN_TIMEOUT_MS = 10_000;
 const OBSIDIAN_TIMEOUT_MS = 7_000;
 const XIAOHONGSHU_NOTE_URL =
@@ -336,9 +339,6 @@ async function updateStage(
     currentImage: message.currentImage,
     currentSourceImage: message.currentSourceImage,
     currentImageStartedAt: message.currentImageStartedAt,
-    bytesLoaded: message.bytesLoaded,
-    bytesTotal: message.bytesTotal,
-    bytesCached: message.bytesCached,
     stageDurations: { ...job.stageDurations, ...message.stageDurations },
     updatedAt: new Date().toISOString()
   };

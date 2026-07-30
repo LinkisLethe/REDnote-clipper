@@ -53,6 +53,32 @@ describe("extractXiaohongshuPage", () => {
     expect(result.data?.metrics.likedCount).toBe("10");
   });
 
+  it("runs after Chrome-style function serialization", () => {
+    window.__INITIAL_STATE__ = {
+      note: {
+        noteDetailMap: {
+          abc123: {
+            note: {
+              noteId: "abc123",
+              title: "序列化测试",
+              desc: "正文 #测试[话题]#",
+              user: { nickname: "作者" },
+              tagList: [{ name: "测试" }],
+              imageList: [{ urlDefault: "https://sns-webpic-qc.xhscdn.com/1.jpg" }]
+            }
+          }
+        }
+      }
+    };
+
+    const injected = window.eval(`(${extractXiaohongshuPage.toString()})`) as
+      typeof extractXiaohongshuPage;
+    const result = injected();
+
+    expect(result.ok).toBe(true);
+    expect(result.data?.tags).toEqual(["测试"]);
+  });
+
   it("falls back to visible DOM content", () => {
     document.body.innerHTML = `
       <main class="note-content">

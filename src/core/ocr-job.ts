@@ -1,6 +1,7 @@
 import type { Note, OcrJob } from "./types";
 
-export const OCR_PIPELINE_VERSION = 3;
+export const OCR_PIPELINE_VERSION = 4;
+export const OCR_ENABLED_KEY = "ocrEnabled";
 
 export function sameOcrJobSource(job: OcrJob, note: Note): boolean {
   return (

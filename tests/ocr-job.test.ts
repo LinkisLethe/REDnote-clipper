@@ -30,7 +30,7 @@ function job(status: OcrJob["status"]): OcrJob {
     current: 0,
     total: 1,
     results: [null, null],
-    stage: "checking-cache",
+    stage: "loading-runtime",
     progress: 0,
     startedAt: "2026-07-28T00:00:00.000Z",
     stageStartedAt: "2026-07-28T00:00:00.000Z",

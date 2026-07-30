@@ -8,67 +8,109 @@
 
 [English](README.md)
 
-XHS Clipper 是一个 Chrome Manifest V3 扩展。打开一篇小红书图文笔记后，它可以读取页面内容，将指定图片交给浏览器本地 OCR，再生成可编辑的纯文本 Markdown。结果既能下载，也能直接写入本机 Obsidian 仓库。
+XHS Clipper 是一个 Chrome 扩展，用来把当前打开的小红书图文笔记整理成可编辑的纯文本 Markdown。它可以读取笔记正文，也可以在浏览器本地识别图片文字。结果可以下载为 `.md` 文件，或者直接写入本机 Obsidian 仓库。
+
+![在小红书页面中使用 XHS Clipper](docs/images/workflow-redacted.png)
 
 ## 主要功能
 
-- 采集当前笔记的标题、正文、作者、标签、发布时间、互动数据、来源链接和图片顺序。
-- 优先读取页面结构化数据，失败时退回可见 DOM 内容。
-- 在浏览器本地运行内置 PP-OCRv6 Tiny，不把图片或 OCR 文字发送给远程识别服务。
-- 支持全部图片、跳过封面和自定义页码三种识别范围。
-- 修复常见中英文空格、错误换行、段落结构和重复 OCR 内容。
-- 支持 Markdown 预览、手动编辑、复制、下载和写入 Obsidian。
-- 写入前检查 Obsidian 同名笔记，覆盖时必须确认。
-- 提供简体中文和英文界面，默认跟随 Chrome 的显示语言。
+- 采集标题、正文、作者、标签、发布时间、互动数量、来源链接和图片顺序。
+- 可选本地 OCR，支持全部图片、跳过封面和自定义页码。
+- 修正常见的中英文空格、错误换行、段落断裂和完全重复的 OCR 内容。
+- 在下载前预览并编辑 Markdown。
+- 下载 `.md` 文件，或通过本机 REST API 写入 Obsidian。
+- 检查 Obsidian 中的同名笔记，覆盖前要求确认。
+- 界面支持简体中文和英文，默认跟随 Chrome 的显示语言。
+
+OCR 使用内置 PP-OCRv6 Tiny 模型。图片和识别结果不会发送给远程 OCR 服务。
 
 ## 从源码安装
 
-需要 Node.js 20 以上版本和 pnpm。
+需要 Node.js 20 或更高版本，以及 pnpm。
 
 ```bash
 pnpm install
 pnpm verify
 ```
 
-构建结果位于 `dist`。
+构建结果位于 `dist` 文件夹。打开 Chrome，在地址栏输入 `chrome://extensions/`，打开右上角的“开发者模式”，点击“加载已解压的扩展程序”，然后选择本项目的 `dist` 文件夹。
 
-1. 打开 `chrome://extensions/`。
-2. 打开右上角“开发者模式”。
-3. 点击“加载已解压的扩展程序”。
-4. 选择本项目的 `dist` 文件夹。
-5. 打开一篇小红书图文笔记，再点击扩展图标。
+安装完成后，把 XHS Clipper 固定到浏览器工具栏，打开一篇小红书图文笔记，再点击扩展图标。
 
-## OCR 使用方式
+## 采集和 OCR
 
-OCR 可以随时关闭。扩展内置约 6 MB 的 PP-OCRv6 Tiny 模型，正常使用时不需要下载模型。第一次识别会初始化本地 ONNX 运行库，后续任务会复用已经加载的引擎。进度卡会显示初始化、逐图识别、文字汇总、已用时间和预计剩余时间。
+采集器打开后会先读取笔记正文和元数据。打开“识别图片文字”后，可以选择识别范围，再点击“开始识别”或“重新识别”。
 
-长图会先分块，再按原图顺序合并。单张图片失败不会中断剩余图片。后处理只修复排版和完全重复的内容，不会改写作者原文。
+![OCR 范围、进度和 Markdown 预览](docs/images/popup-overview.png)
+
+第一次 OCR 会初始化本地 ONNX 运行库。后续任务会复用已经加载的引擎。长图会先分块，再按原图顺序合并结果；单张图片失败不会中断其余图片。
+
+后处理只修复排版，不改写原文。你也可以直接修改预览框里的内容，然后复制、下载或写入 Obsidian。
 
 ## 写入 Obsidian
 
-直接写入依赖 Obsidian 社区插件 [Local REST API with MCP](https://github.com/coddingtonbear/obsidian-local-rest-api)。
+直接写入依赖 Obsidian 社区插件 [Local REST API with MCP](https://github.com/coddingtonbear/obsidian-local-rest-api)。写入时需要保持 Obsidian 打开。
 
-1. 在 Obsidian 中安装并启用该插件。
-2. 在插件设置里启用非加密 HTTP 服务。
-3. 点击 XHS Clipper 右上角的齿轮按钮。
-4. 填写笔记目录、本地 API 地址和 API Key。
-5. 保存设置并测试连接。
+### 1. 获取本机 API 地址和 Key
 
-默认目录为 `Clippings/Xiaohongshu`，默认地址为 `http://127.0.0.1:27123`。API Key 只保存在本机扩展存储中，插件只允许连接本机回环地址。
+1. 在 Obsidian 打开“设置 > 第三方插件 > 浏览”。
+2. 安装并启用 Local REST API with MCP。
+3. 打开该插件的设置，启用非加密 HTTP 服务。
+4. 复制 `Non-encrypted (HTTP) API URL` 和 API Key。
+
+<details>
+<summary>查看 Obsidian 插件设置示例</summary>
+
+![Obsidian Local REST API 地址与 API Key 位置](docs/images/obsidian-local-rest-api.png)
+
+</details>
+
+### 2. 配置 XHS Clipper
+
+1. 点击采集器右上角的齿轮按钮。
+2. 填写笔记目录，例如 `Clippings/Xiaohongshu`。
+3. 填写本机 API 地址。默认值是 `http://127.0.0.1:27123`。
+4. 粘贴 API Key，保存设置，再点击“测试连接”。
+
+![XHS Clipper 的 Obsidian 写入设置](docs/images/obsidian-settings.png)
+
+API Key 只保存在当前 Chrome 配置的扩展存储中。XHS Clipper 只接受 `127.0.0.1` 或 `localhost` 地址。不要在截图、Issue 或日志中公开 API Key。
 
 ## Markdown 内容
 
-文件包含固定结构的 YAML Frontmatter、笔记正文和按图片顺序排列的 OCR 文字。文件名格式为 `标题_作者_日期.md`。图片不会嵌入 Markdown，也不会作为文件下载。
+导出的文件包含 YAML Frontmatter、笔记正文，以及按图片顺序排列的 OCR 文字。默认文件名是 `标题_作者_日期.md`。项目只导出纯文本，不下载或嵌入原始图片。
+
+```markdown
+---
+title: "示例笔记"
+source: "https://www.xiaohongshu.com/explore/example"
+platform: "xiaohongshu"
+author: "示例作者"
+ocr: true
+---
+
+# 示例笔记
+
+## 正文
+
+笔记正文……
+
+## 图片文字
+
+### 图片 1
+
+识别结果……
+```
 
 ## 当前范围
 
-XHS Clipper 每次只处理用户当前打开的一篇小红书图文笔记。目前不采集评论，不搜索博主，不批量采集账号内容，不发布或互动，不下载图片文件，也不使用云端数据库。
+XHS Clipper 每次处理用户当前打开的一篇小红书图文笔记。目前不采集评论，不搜索博主或用户主页，不批量采集账号内容，不发布、点赞、收藏或回复，也不下载图片文件或使用云端数据库。
 
 数据处理方式见[隐私说明](docs/PRIVACY.zh-CN.md)，浏览器权限用途见[权限说明](docs/PERMISSIONS.zh-CN.md)。
 
 ## 使用边界
 
-XHS Clipper 是独立开发的非官方项目，与小红书不存在隶属、认可或赞助关系。小红书及相关名称和标识归其权利人所有。
+XHS Clipper 是独立开发的非官方项目，与小红书没有隶属、认可或赞助关系。小红书及相关名称和标识归其权利人所有。
 
 请只处理你有权访问和使用的内容，并自行遵守适用法律、版权规则和平台条款。未经许可，不要用本项目转载、出售或传播他人的内容。
 
@@ -80,7 +122,7 @@ pnpm build
 pnpm verify
 ```
 
-代码按页面提取、OCR、文字后处理、Markdown 导出和 Obsidian 写入拆分。以后增加搜索或 Skill 入口时，可以继续使用现有 `Note` 数据结构，不需要改动导出模块。
+代码按页面提取、OCR、文字后处理、Markdown 导出和 Obsidian 写入拆分。以后增加搜索或 Skill 入口时，可以继续使用现有 `Note` 数据结构。
 
 OCR 使用 Apache-2.0 许可的 PP-OCRv6 Tiny 模型和 MIT 许可的 `onnxruntime-web`。图片预处理与结果解码参考 PaddleOCR.js 的公开行为，并用 Canvas 和 TypeScript 替代 OpenCV。项目参考了 Obsidian Web Clipper、Bilibili Obsidian Clipper、ChatGPT Exporter、xiaohongshu-mcp 和 xiaohongshu-skills 的产品流程或数据结构，没有直接复制这些项目的业务代码。
 

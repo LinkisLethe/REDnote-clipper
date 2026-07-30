@@ -167,10 +167,6 @@ export async function decodeImageBlob(blob: Blob): Promise<ImageData> {
   }
 }
 
-export async function decodeImageFile(file: File): Promise<ImageData> {
-  return decodeImageBlob(file);
-}
-
 function readTarString(bytes: Uint8Array, start: number, length: number): string {
   let end = start;
   const limit = Math.min(bytes.length, start + length);

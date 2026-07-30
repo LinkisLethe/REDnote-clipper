@@ -22,7 +22,7 @@ function job(overrides: Partial<OcrJob> = {}): OcrJob {
     stageStartedAt: "2026-07-28T00:00:05.000Z",
     currentImage: 2,
     currentImageStartedAt: "2026-07-28T00:00:08.000Z",
-    stageDurations: { "checking-cache": 100, "initializing-engine": 3_000 },
+    stageDurations: { "loading-runtime": 100, "creating-sessions": 3_000 },
     updatedAt: "2026-07-28T00:00:08.000Z",
     ...overrides,
     pipelineVersion: overrides.pipelineVersion ?? 2
@@ -39,35 +39,19 @@ describe("OCR progress estimates", () => {
     expect(durations["recognizing-images"]).toBe(4_000);
   });
 
-  it("combines new and legacy initialization stages into one display value", () => {
+  it("combines current initialization stages into one display value", () => {
     const initializing = job({
       current: 0,
       stage: "creating-sessions",
       stageDurations: {
         "loading-runtime": 120,
-        "initializing-opencv": 100,
-        "probing-webgpu": 50,
         "loading-models": 150
       },
       stageStartedAt: "2026-07-28T00:00:08.000Z"
     });
     const now = Date.parse("2026-07-28T00:00:09.000Z");
     const durations = liveStageDurations(initializing, now);
-    expect(initializationDurationMs(durations)).toBe(1_420);
-  });
-
-  it("does not count cached model bytes as download speed", () => {
-    const remaining = estimateRemainingMs(
-      job({
-        stage: "downloading-models",
-        bytesCached: 10_000_000,
-        bytesLoaded: 15_000_000,
-        bytesTotal: 30_000_000,
-        stageStartedAt: "2026-07-28T00:00:05.000Z"
-      }),
-      Date.parse("2026-07-28T00:00:10.000Z")
-    );
-    expect(remaining).toBe(23_500);
+    expect(initializationDurationMs(durations)).toBe(1_270);
   });
 
   it("returns zero after completion", () => {

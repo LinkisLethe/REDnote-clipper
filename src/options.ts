@@ -1,3 +1,4 @@
+import "./shared.css";
 import "./options.css";
 import { createMessageGetter, getUiLanguage, localizeDocument } from "./core/i18n";
 import {

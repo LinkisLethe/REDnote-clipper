@@ -1,25 +1,8 @@
-:root {
-  color: #24211f;
-  background: #f5f2ed;
-  font-family: Inter, "SF Pro Display", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  font-synthesis: none;
-}
-
-* {
-  box-sizing: border-box;
-}
-
 body {
   min-width: 320px;
-  margin: 0;
   background:
     radial-gradient(circle at 12% 0%, rgba(216, 71, 62, 0.1), transparent 32rem),
     #f5f2ed;
-}
-
-button,
-input {
-  font: inherit;
 }
 
 .settings-shell {
@@ -36,22 +19,11 @@ input {
 }
 
 .brand-mark {
-  display: grid;
   width: 54px;
   height: 54px;
-  flex: 0 0 auto;
-  place-items: center;
   border-radius: 17px;
-  background: #d8473e;
   box-shadow: 0 9px 24px rgba(152, 45, 39, 0.2);
-  color: #fff;
-  font: 700 29px Georgia, serif;
-}
-
-h1,
-h2,
-p {
-  margin: 0;
+  font-size: 29px;
 }
 
 h1 {

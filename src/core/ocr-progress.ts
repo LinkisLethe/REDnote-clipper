@@ -1,6 +1,5 @@
 import type { OcrJob, OcrStageDurations } from "./types";
 
-const DEFAULT_INITIALIZATION_MS = 500;
 const DEFAULT_RUNTIME_LOAD_MS = 50;
 const DEFAULT_MODEL_READ_MS = 150;
 const DEFAULT_SESSION_CREATE_MS = 300;
@@ -9,8 +8,6 @@ const DEFAULT_FINALIZATION_MS = 100;
 
 const INITIALIZATION_STAGES = [
   "loading-runtime",
-  "initializing-opencv",
-  "probing-webgpu",
   "loading-models",
   "creating-sessions"
 ] as const;
@@ -62,34 +59,9 @@ export function estimateRemainingMs(job: OcrJob, now = Date.now()): number | und
   );
 
   switch (job.stage) {
-    case "checking-cache":
-      return DEFAULT_INITIALIZATION_MS + recognitionRemaining + DEFAULT_FINALIZATION_MS;
-    case "downloading-models": {
-      const cached = job.bytesCached || 0;
-      const loaded = Math.max(0, (job.bytesLoaded || 0) - cached);
-      const total = Math.max(0, (job.bytesTotal || 0) - cached);
-      const downloadRemaining =
-        loaded > 0 && total > loaded ? (stageElapsed * (total - loaded)) / loaded : undefined;
-      if (downloadRemaining === undefined) return undefined;
-      return downloadRemaining + DEFAULT_INITIALIZATION_MS + recognitionRemaining;
-    }
-    case "initializing-engine":
-      return (
-        Math.max(0, DEFAULT_INITIALIZATION_MS - stageElapsed) +
-        recognitionRemaining +
-        DEFAULT_FINALIZATION_MS
-      );
     case "loading-runtime":
       return (
         Math.max(0, DEFAULT_RUNTIME_LOAD_MS - stageElapsed) +
-        DEFAULT_MODEL_READ_MS +
-        DEFAULT_SESSION_CREATE_MS +
-        recognitionRemaining +
-        DEFAULT_FINALIZATION_MS
-      );
-    case "initializing-opencv":
-    case "probing-webgpu":
-      return (
         DEFAULT_MODEL_READ_MS +
         DEFAULT_SESSION_CREATE_MS +
         recognitionRemaining +

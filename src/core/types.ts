@@ -25,12 +25,7 @@ export interface OcrImageResult {
 }
 
 export type OcrStage =
-  | "checking-cache"
-  | "downloading-models"
-  | "initializing-engine"
   | "loading-runtime"
-  | "initializing-opencv"
-  | "probing-webgpu"
   | "loading-models"
   | "creating-sessions"
   | "recognizing-images"
@@ -88,9 +83,6 @@ export interface OcrJob {
   currentImage?: number;
   currentSourceImage?: number;
   currentImageStartedAt?: string;
-  bytesLoaded?: number;
-  bytesTotal?: number;
-  bytesCached?: number;
   stageDurations: OcrStageDurations;
   durationMs?: number;
   error?: string;
@@ -132,9 +124,6 @@ export type BackgroundRequest =
       currentImage?: number;
       currentSourceImage?: number;
       currentImageStartedAt?: string;
-      bytesLoaded?: number;
-      bytesTotal?: number;
-      bytesCached?: number;
       stageDurations?: OcrStageDurations;
     }
   | {

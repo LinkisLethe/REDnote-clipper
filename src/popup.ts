@@ -1,3 +1,4 @@
+import "./shared.css";
 import "./popup.css";
 import {
   extractXiaohongshuPage,
@@ -12,7 +13,7 @@ import {
   initializationDurationMs,
   liveStageDurations
 } from "./core/ocr-progress";
-import { sameOcrJobSource } from "./core/ocr-job";
+import { OCR_ENABLED_KEY, sameOcrJobSource } from "./core/ocr-job";
 import {
   formatOcrPageList,
   resolveOcrImageIndexes,
@@ -26,7 +27,6 @@ import type {
   PopupJobUpdate
 } from "./core/types";
 
-const OCR_ENABLED_KEY = "ocrEnabled";
 const language = getUiLanguage();
 const message = createMessageGetter(language);
 
@@ -228,19 +228,6 @@ function formatDuration(durationMs: number): string {
 
 function localizeOcrError(error?: string): string {
   if (!error) return message("ocrErrorUnknown");
-  const exactMessages: Record<string, string> = {
-    OCR_RUNTIME_LOAD_TIMEOUT: "ocrErrorRuntimeTimeout",
-    OCR_OPENCV_INIT_TIMEOUT: "ocrErrorOpenCvTimeout",
-    OCR_WEBGPU_PROBE_TIMEOUT: "ocrErrorWebGpuTimeout",
-    OCR_MODEL_READ_TIMEOUT: "ocrErrorModelTimeout",
-    OCR_SESSION_CREATE_TIMEOUT: "ocrErrorSessionTimeout",
-    OCR_SANDBOX_LOAD_TIMEOUT: "ocrErrorSandboxLoadTimeout",
-    OCR_SANDBOX_TIMEOUT: "ocrErrorSandboxTimeout",
-    OCR_PREDICTION_TIMEOUT: "ocrErrorPredictionTimeout",
-    OCR_OPENCV_INVALID_RUNTIME: "ocrErrorOpenCvInvalid"
-  };
-  const key = exactMessages[error];
-  if (key) return message(key);
   if (error === "OCR_IMAGE_SELECTION_INVALID") return message("ocrRangeInvalid");
   if (error.startsWith("OCR_MODEL_READ_FAILED:")) return message("ocrErrorModelRead");
   return error;
@@ -255,18 +242,8 @@ function stageMessage(job: OcrJob): string {
     return message("ocrFailed", localizeOcrError(job.error || "Unknown error"));
   }
   switch (job.stage) {
-    case "checking-cache":
-      return message("ocrStageChecking");
-    case "downloading-models":
-      return message("ocrStageDownloading");
-    case "initializing-engine":
-      return message("ocrStageInitializing");
     case "loading-runtime":
       return message("ocrStageRuntime");
-    case "initializing-opencv":
-      return message("ocrStageOpenCv");
-    case "probing-webgpu":
-      return message("ocrStageWebGpu");
     case "loading-models":
       return message("ocrStageModels");
     case "creating-sessions":
@@ -308,11 +285,7 @@ function renderOcrProgress(job: OcrJob): void {
     "is-indeterminate",
     job.status === "running" &&
       [
-        "checking-cache",
-        "initializing-engine",
         "loading-runtime",
-        "initializing-opencv",
-        "probing-webgpu",
         "loading-models",
         "creating-sessions",
         "finalizing"
@@ -328,12 +301,7 @@ function renderOcrProgress(job: OcrJob): void {
         ? message("ocrEstimating")
         : message("ocrRemaining", formatDuration(remainingMs));
 
-  if (job.stage === "downloading-models" && job.bytesTotal) {
-    ocrProgressDetail.textContent = message("ocrDownloadedBytes", [
-      (Math.min(job.bytesLoaded || 0, job.bytesTotal) / 1_000_000).toFixed(1),
-      (job.bytesTotal / 1_000_000).toFixed(1)
-    ]);
-  } else if (job.stage === "recognizing-images") {
+  if (job.stage === "recognizing-images") {
     const completed = job.results
       .map((result) => result?.durationMs)
       .filter((duration): duration is number => typeof duration === "number" && duration > 0);
@@ -461,27 +429,6 @@ async function handleStartOcr(): Promise<void> {
   }
 }
 
-function demoNote(): Note {
-  return {
-    id: "demo-note",
-    url: "https://www.xiaohongshu.com/explore/demo-note",
-    platform: "xiaohongshu",
-    title: "周末在杭州散步：三条安静路线",
-    body: "避开热门景点，从北山街走到茅家埠。沿路树荫很多，下午四点以后光线最好。\n\n#杭州旅行 #城市散步",
-    authorName: "山野记录员",
-    images: [
-      { index: 0, url: "https://example.com/1.jpg" },
-      { index: 1, url: "https://example.com/2.jpg" },
-      { index: 2, url: "https://example.com/3.jpg" }
-    ],
-    tags: ["杭州旅行", "城市散步"],
-    publishedAt: "2026-07-26T08:30:00.000Z",
-    capturedAt: new Date().toISOString(),
-    metrics: { likedCount: "128", collectedCount: "54", commentCount: "12" },
-    extractionSource: "initial-state"
-  };
-}
-
 async function capturePage(): Promise<void> {
   note = null;
   currentJob = null;
@@ -494,7 +441,12 @@ async function capturePage(): Promise<void> {
   refreshButton.disabled = true;
   try {
     if (!isExtensionRuntime()) {
-      note = demoNote();
+      if (!import.meta.env.DEV) {
+        setStatus(message("unsupportedPage"), "error");
+        return;
+      }
+      const { createDemoNote } = await import("./dev/demo-note");
+      note = createDemoNote();
     } else {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id || !tab.url || !/^https:\/\/([^.]+\.)?xiaohongshu\.com\//i.test(tab.url)) {

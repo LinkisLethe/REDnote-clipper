@@ -55,7 +55,6 @@ export function extractXiaohongshuPage(): ExtractionResponse {
     }
     return "";
   };
-  const queryText = (selectors: string[]): string => queryTextFrom(document, selectors);
   const cleanImageUrl = (value: unknown): string => {
     const text = asText(value);
     if (!text) return "";
@@ -85,6 +84,8 @@ export function extractXiaohongshuPage(): ExtractionResponse {
       )
     );
   };
+  // Chrome serializes this function before injecting it into the page.
+  // Keep helpers used below inside the function so the injected copy has no module dependencies.
   const cleanTag = (value: string): string =>
     value
       .trim()

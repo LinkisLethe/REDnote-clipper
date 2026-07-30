@@ -31,9 +31,6 @@ interface StageExtras {
   currentImage?: number;
   currentSourceImage?: number;
   currentImageStartedAt?: string;
-  bytesLoaded?: number;
-  bytesTotal?: number;
-  bytesCached?: number;
 }
 
 type StageReporter = (

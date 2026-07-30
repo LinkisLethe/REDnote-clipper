@@ -10,7 +10,13 @@
 
 XHS Clipper is a Chrome extension that turns the currently open Xiaohongshu image post into editable plain-text Markdown. It captures the written post and can recognize text inside selected images on your device. You can download the result as a `.md` file or write it directly to a local Obsidian vault.
 
-![XHS Clipper running on a Xiaohongshu post](docs/images/workflow-redacted.png)
+<p align="center">
+  <img
+    src="docs/images/workflow-redacted.png"
+    alt="OCR range, progress, and Markdown preview"
+    width="1000"
+  />
+</p>
 
 ## Features
 
@@ -41,11 +47,13 @@ After installation, pin XHS Clipper to the Chrome toolbar. Open a Xiaohongshu im
 
 The popup first reads the post body and metadata. Turn on **Recognize text in images**, choose the pages you need, then select **Start OCR** or **Run OCR again**.
 
-<img
-  src="docs/images/popup-overview.png"
-  alt="OCR range, progress, and Markdown preview"
-  width="520"
-/>
+<p align="center">
+  <img
+    src="docs/images/popup-overview.png"
+    alt="OCR range, progress, and Markdown preview"
+    width="520"
+  />
+</p>
 
 The first OCR job initializes the local ONNX runtime. Later jobs reuse the loaded engine. Long images are divided into smaller sections and merged in source order. If one image fails, the extension continues with the remaining images.
 
@@ -76,8 +84,13 @@ Direct writing uses the [Local REST API with MCP](https://github.com/coddingtonb
 3. Enter the local API address. The default is `http://127.0.0.1:27123`.
 4. Paste the API key, save the settings, and select **Test connection**.
 
-![Obsidian writing settings in XHS Clipper](docs/images/obsidian-settings.png)
-
+<p align="center">
+  <img
+    src="docs/images/obsidian-settings.png"
+    alt="OCR range, progress, and Markdown preview"
+    width="550"
+  />
+</p>
 The API key stays in extension storage for the current Chrome profile. XHS Clipper only accepts `127.0.0.1` and `localhost` addresses. Do not publish the API key in screenshots, issues, or logs.
 
 ## Markdown output

@@ -38,18 +38,27 @@ XHS Clipper is a Chrome extension that turns the currently open Xiaohongshu imag
 
 OCR runs with bundled PP-OCRv6 Tiny models. Images and recognized text are not sent to a remote OCR service.
 
-## Install from source
+## Installation
 
-You need Node.js 20 or newer and pnpm.
+### Install the packaged extension
+
+1. Open the [latest release](https://github.com/LinkisLethe/xhs-clipper/releases/latest) and download `xhs-clipper-v0.4.0.zip`.
+2. Extract the ZIP file. Chrome cannot load the ZIP directly.
+3. Open `chrome://extensions/` and enable **Developer mode**.
+4. Select **Load unpacked**, then choose the extracted folder that contains `manifest.json`.
+
+The packaged extension does not require Node.js or pnpm. After installation, pin XHS Clipper to the Chrome toolbar, open a Xiaohongshu image post, and click the extension icon.
+
+### Build from source
+
+Building from source requires Node.js 20 or newer and pnpm.
 
 ```bash
 pnpm install
 pnpm verify
 ```
 
-The build is written to the `dist` directory. Open Chrome and enter `chrome://extensions/` in the address bar. Enable Developer mode, select **Load unpacked**, then choose this project's `dist` directory.
-
-After installation, pin XHS Clipper to the Chrome toolbar. Open a Xiaohongshu image post and click the extension icon.
+The build is written to the `dist` directory. Load that directory from `chrome://extensions/`.
 
 ## Capture and OCR
 

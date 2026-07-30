@@ -1,16 +1,30 @@
-# XHS Clipper
+[简体中文](README.zh-CN.md) | [English](README.md)
 
-[![Chrome 116+](https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&logoColor=white&style=flat-square)](https://www.google.com/chrome/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
-[![OCR](https://img.shields.io/badge/OCR-PP--OCRv6-0C7BDC?style=flat-square)](https://github.com/PaddlePaddle/PaddleOCR)
-[![Version](https://img.shields.io/badge/version-0.4.0-D8473E?style=flat-square)](https://github.com/LinkisLethe/xhs-clipper)
-[![License](https://img.shields.io/badge/license-Apache--2.0-7B68EE?style=flat-square)](LICENSE)
+<p align="center">
+  <img src="docs/images/xhs-clipper-logo.png" alt="XHS Clipper Logo" width="128" />
+</p>
 
-[English](README.md)
+<h1 align="center">XHS Clipper</h1>
+
+<p align="center">把小红书图文笔记整理成可编辑的纯文本 Markdown。</p>
+
+<p align="center">
+  <a href="https://www.google.com/chrome/"><img src="https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&amp;logoColor=white&amp;style=flat-square" alt="Chrome 116+" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&amp;logoColor=white&amp;style=flat-square" alt="TypeScript 5.x" /></a>
+  <a href="https://github.com/PaddlePaddle/PaddleOCR"><img src="https://img.shields.io/badge/OCR-PP--OCRv6-0C7BDC?style=flat-square" alt="PP-OCRv6" /></a>
+  <a href="https://github.com/LinkisLethe/xhs-clipper"><img src="https://img.shields.io/badge/version-0.4.0-D8473E?style=flat-square" alt="版本 0.4.0" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-7B68EE?style=flat-square" alt="Apache 2.0 许可证" /></a>
+</p>
 
 XHS Clipper 是一个 Chrome 扩展，用来把当前打开的小红书图文笔记整理成可编辑的纯文本 Markdown。它可以读取笔记正文，也可以在浏览器本地识别图片文字。结果可以下载为 `.md` 文件，或者直接写入本机 Obsidian 仓库。
 
-![在小红书页面中使用 XHS Clipper](docs/images/workflow-redacted.png)
+<p align="center">
+  <img
+    src="docs/images/workflow-redacted.png"
+    alt="在小红书页面中使用 XHS Clipper"
+    width="1000"
+  />
+</p>
 
 ## 主要功能
 
@@ -41,7 +55,13 @@ pnpm verify
 
 采集器打开后会先读取笔记正文和元数据。打开“识别图片文字”后，可以选择识别范围，再点击“开始识别”或“重新识别”。
 
-![OCR 范围、进度和 Markdown 预览](docs/images/popup-overview.png)
+<p align="center">
+  <img
+    src="docs/images/popup-overview.png"
+    alt="OCR 范围、进度和 Markdown 预览"
+    width="520"
+  />
+</p>
 
 第一次 OCR 会初始化本地 ONNX 运行库。后续任务会复用已经加载的引擎。长图会先分块，再按原图顺序合并结果；单张图片失败不会中断其余图片。
 
@@ -72,7 +92,13 @@ pnpm verify
 3. 填写本机 API 地址。默认值是 `http://127.0.0.1:27123`。
 4. 粘贴 API Key，保存设置，再点击“测试连接”。
 
-![XHS Clipper 的 Obsidian 写入设置](docs/images/obsidian-settings.png)
+<p align="center">
+  <img
+    src="docs/images/obsidian-settings.png"
+    alt="XHS Clipper 的 Obsidian 写入设置"
+    width="550"
+  />
+</p>
 
 API Key 只保存在当前 Chrome 配置的扩展存储中。XHS Clipper 只接受 `127.0.0.1` 或 `localhost` 地址。不要在截图、Issue 或日志中公开 API Key。
 
@@ -101,12 +127,6 @@ ocr: true
 
 识别结果……
 ```
-
-## 当前范围
-
-XHS Clipper 每次处理用户当前打开的一篇小红书图文笔记。目前不采集评论，不搜索博主或用户主页，不批量采集账号内容，不发布、点赞、收藏或回复，也不下载图片文件或使用云端数据库。
-
-数据处理方式见[隐私说明](docs/PRIVACY.zh-CN.md)，浏览器权限用途见[权限说明](docs/PERMISSIONS.zh-CN.md)。
 
 ## 使用边界
 

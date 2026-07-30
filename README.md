@@ -1,12 +1,20 @@
-# XHS Clipper
+[简体中文](README.zh-CN.md) | [English](README.md)
 
-[![Chrome 116+](https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&logoColor=white&style=flat-square)](https://www.google.com/chrome/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
-[![OCR](https://img.shields.io/badge/OCR-PP--OCRv6-0C7BDC?style=flat-square)](https://github.com/PaddlePaddle/PaddleOCR)
-[![Version](https://img.shields.io/badge/version-0.4.0-D8473E?style=flat-square)](https://github.com/LinkisLethe/xhs-clipper)
-[![License](https://img.shields.io/badge/license-Apache--2.0-7B68EE?style=flat-square)](LICENSE)
+<p align="center">
+  <img src="docs/images/xhs-clipper-logo.png" alt="XHS Clipper logo" width="128" />
+</p>
 
-[简体中文](README.zh-CN.md)
+<h1 align="center">XHS Clipper</h1>
+
+<p align="center">Turn Xiaohongshu image posts into editable, plain-text Markdown.</p>
+
+<p align="center">
+  <a href="https://www.google.com/chrome/"><img src="https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&amp;logoColor=white&amp;style=flat-square" alt="Chrome 116+" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&amp;logoColor=white&amp;style=flat-square" alt="TypeScript 5.x" /></a>
+  <a href="https://github.com/PaddlePaddle/PaddleOCR"><img src="https://img.shields.io/badge/OCR-PP--OCRv6-0C7BDC?style=flat-square" alt="PP-OCRv6" /></a>
+  <a href="https://github.com/LinkisLethe/xhs-clipper"><img src="https://img.shields.io/badge/version-0.4.0-D8473E?style=flat-square" alt="Version 0.4.0" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-7B68EE?style=flat-square" alt="Apache 2.0 license" /></a>
+</p>
 
 XHS Clipper is a Chrome extension that turns the currently open Xiaohongshu image post into editable plain-text Markdown. It captures the written post and can recognize text inside selected images on your device. You can download the result as a `.md` file or write it directly to a local Obsidian vault.
 
@@ -118,12 +126,6 @@ Post text...
 
 Recognized text...
 ```
-
-## Current scope
-
-XHS Clipper handles one user-opened Xiaohongshu image post at a time. It does not capture comments, search creators or profile pages, collect accounts in bulk, publish or interact with posts, download image files, or use a cloud database.
-
-See the [privacy policy](docs/PRIVACY.md) and [permission reference](docs/PERMISSIONS.md) for details about local data processing and browser access.
 
 ## Responsible use
 

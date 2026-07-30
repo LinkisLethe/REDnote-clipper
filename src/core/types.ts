@@ -1,4 +1,4 @@
-export type UiLanguage = "zh-CN" | "en";
+export type UiLanguage = "zh-CN" | "zh-TW" | "en";
 
 export interface NoteMetrics {
   likedCount?: string;

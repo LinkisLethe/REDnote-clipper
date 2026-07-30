@@ -34,7 +34,7 @@ XHS Clipper 是一个 Chrome 扩展，用来把当前打开的小红书图文笔
 - 在下载前预览并编辑 Markdown。
 - 下载 `.md` 文件，或通过本机 REST API 写入 Obsidian。
 - 检查 Obsidian 中的同名笔记，覆盖前要求确认。
-- 界面支持简体中文和英文，默认跟随 Chrome 的显示语言。
+- 界面跟随 Chrome 的显示语言：`zh_CN` 显示简体中文，`zh_TW` 显示繁体中文，香港及其他语言显示英文。
 
 OCR 使用内置 PP-OCRv6 Tiny 模型。图片和识别结果不会发送给远程 OCR 服务。
 

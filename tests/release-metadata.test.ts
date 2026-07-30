@@ -10,9 +10,11 @@ describe("release metadata", () => {
     };
     const manifest = JSON.parse(readFileSync("public/manifest.json", "utf8")) as {
       version: string;
+      default_locale: string;
     };
     expect(packageJson.version).toBe("0.4.0");
     expect(manifest.version).toBe(packageJson.version);
+    expect(manifest.default_locale).toBe("en");
     expect(packageJson.license).toBe("Apache-2.0");
     expect(packageJson.author).toBe("Hongjia LIN");
   });
@@ -24,7 +26,9 @@ describe("release metadata", () => {
     const permissions = readFileSync("docs/PERMISSIONS.md", "utf8");
 
     expect(english).toContain("Write to Obsidian");
+    expect(english).toContain("Traditional Chinese");
     expect(chinese).toContain("写入 Obsidian");
+    expect(chinese).toContain("繁体中文");
     expect(chinese).not.toContain("暂不支持评论");
     expect(privacy).toContain("loopback address");
     expect(permissions).toContain("`offscreen`");

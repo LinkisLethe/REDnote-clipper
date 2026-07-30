@@ -34,7 +34,7 @@ XHS Clipper is a Chrome extension that turns the currently open Xiaohongshu imag
 - Preview and edit Markdown before exporting it.
 - Download a `.md` file or write it to Obsidian through a local REST API.
 - Check for an existing Obsidian note and ask before overwriting it.
-- Use a Simplified Chinese or English interface based on Chrome's display language.
+- Follow Chrome's display language: `zh_CN` uses Simplified Chinese, `zh_TW` uses Traditional Chinese, and every other locale uses English.
 
 OCR runs with bundled PP-OCRv6 Tiny models. Images and recognized text are not sent to a remote OCR service.
 

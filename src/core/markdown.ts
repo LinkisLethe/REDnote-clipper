@@ -7,6 +7,11 @@ const headings = {
     imageText: "图片文字",
     image: "图片"
   },
+  "zh-TW": {
+    body: "正文",
+    imageText: "圖片文字",
+    image: "圖片"
+  },
   en: {
     body: "Content",
     imageText: "Text from images",

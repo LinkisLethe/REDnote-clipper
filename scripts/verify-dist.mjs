@@ -16,6 +16,7 @@ const requiredFiles = [
   "models/PP-OCRv6_tiny_det_onnx_infer.tar",
   "models/PP-OCRv6_tiny_rec_onnx_infer.tar",
   "_locales/zh_CN/messages.json",
+  "_locales/zh_TW/messages.json",
   "_locales/en/messages.json"
 ];
 
@@ -37,7 +38,7 @@ for (const file of [
 
 const manifest = JSON.parse(await readFile(resolve(dist, "manifest.json"), "utf8"));
 if (manifest.manifest_version !== 3) throw new Error("manifest_version must be 3");
-if (manifest.default_locale !== "zh_CN") throw new Error("default_locale must be zh_CN");
+if (manifest.default_locale !== "en") throw new Error("default_locale must be en");
 if (manifest.background?.service_worker !== "assets/background.js") {
   throw new Error("Background service worker path does not match the build output");
 }
@@ -68,16 +69,18 @@ if (manifest.host_permissions?.some((entry) => ["http://*/*", "https://*/*"].inc
   throw new Error("Obsidian access must not grant a broad web host permission");
 }
 
-const localeFiles = ["zh_CN", "en"].map((locale) =>
+const locales = ["zh_CN", "zh_TW", "en"];
+const localeFiles = locales.map((locale) =>
   resolve(dist, "_locales", locale, "messages.json")
 );
-const [zhMessages, enMessages] = await Promise.all(
+const localeMessages = await Promise.all(
   localeFiles.map(async (file) => JSON.parse(await readFile(file, "utf8")))
 );
-const zhKeys = Object.keys(zhMessages).sort();
-const enKeys = Object.keys(enMessages).sort();
-if (JSON.stringify(zhKeys) !== JSON.stringify(enKeys)) {
-  throw new Error("Chinese and English locale keys do not match");
+const localeKeys = localeMessages.map((messages) => Object.keys(messages).sort());
+for (const keys of localeKeys.slice(1)) {
+  if (JSON.stringify(localeKeys[0]) !== JSON.stringify(keys)) {
+    throw new Error("Locale message keys do not match");
+  }
 }
 
 const assetNames = await readdir(resolve(dist, "assets"));
@@ -116,5 +119,5 @@ const modelBytes = (
 if (modelBytes < 6_000_000) throw new Error("Bundled OCR model files are incomplete");
 
 console.log(
-  `Verified MV3 build, ${zhKeys.length} bilingual messages, ${runtimeAssets.length} OCR runtime assets, ${(totalBytes / 1024 / 1024).toFixed(1)} MiB local ORT runtime, ${(modelBytes / 1024 / 1024).toFixed(1)} MiB bundled OCR models.`
+  `Verified MV3 build, ${localeKeys[0].length} messages across ${locales.length} locales, ${runtimeAssets.length} OCR runtime assets, ${(totalBytes / 1024 / 1024).toFixed(1)} MiB local ORT runtime, ${(modelBytes / 1024 / 1024).toFixed(1)} MiB bundled OCR models.`
 );

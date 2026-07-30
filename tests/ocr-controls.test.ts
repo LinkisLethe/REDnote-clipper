@@ -24,8 +24,8 @@ describe("OCR controls", () => {
     expect(css).toMatch(/\.app-footer\s*\{[^}]*flex:\s*0 0 auto;/s);
   });
 
-  it("localizes the controls in Chinese and English", () => {
-    for (const locale of ["zh_CN", "en"]) {
+  it("localizes the controls in every supported locale", () => {
+    for (const locale of ["zh_CN", "zh_TW", "en"]) {
       const messages = JSON.parse(
         readFileSync(`public/_locales/${locale}/messages.json`, "utf8")
       ) as Record<string, { message: string }>;

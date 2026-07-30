@@ -36,8 +36,8 @@ describe("Obsidian settings controls", () => {
     expect(permissions).not.toContain("https://*/*");
   });
 
-  it("keeps the settings interface bilingual", () => {
-    for (const locale of ["zh_CN", "en"]) {
+  it("localizes the settings interface in every supported locale", () => {
+    for (const locale of ["zh_CN", "zh_TW", "en"]) {
       const messages = JSON.parse(
         readFileSync(`public/_locales/${locale}/messages.json`, "utf8")
       ) as Record<string, { message: string }>;

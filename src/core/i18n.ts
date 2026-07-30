@@ -118,6 +118,123 @@ const fallbackMessages: Record<UiLanguage, Record<string, string>> = {
     languageHint: "界面语言跟随 Chrome",
     canceling: "当前图片完成后取消…"
   },
+  "zh-TW": {
+    extensionName: "紅薯 Markdown 採集器",
+    extensionDescription: "將目前的小紅書筆記匯出為純文字 Markdown，可選擇在本機執行 OCR。",
+    appSubtitle: "目前筆記轉純文字 Markdown",
+    refresh: "重新採集",
+    settings: "設定",
+    settingsTitle: "Obsidian 寫入設定",
+    settingsSubtitle: "設定一次後，即可從採集器直接寫入本機儲存庫。",
+    obsidianGuideTitle: "首次設定",
+    obsidianGuideStep1: "在 Obsidian 安裝並啟用 Local REST API with MCP 外掛。",
+    obsidianGuideStep2: "在外掛設定中啟用非加密 HTTP 服務。",
+    obsidianGuideStep3: "複製 API Key，填到下方後測試連線。",
+    noteFolderLabel: "筆記資料夾",
+    noteFolderPlaceholder: "Clippings/Xiaohongshu",
+    noteFolderHint: "例如 Clippings/Xiaohongshu，不需要填寫儲存庫名稱。",
+    noteFolderRequired: "請填寫筆記資料夾。",
+    noteFolderInvalid: "筆記資料夾包含無效字元或路徑。",
+    obsidianApiUrlLabel: "Local REST API 位址",
+    obsidianApiUrlHint: "預設為 http://127.0.0.1:27123，僅允許本機位址。",
+    obsidianApiUrlRequired: "請填寫 Local REST API 位址。",
+    obsidianApiUrlInvalid: "API 位址格式不正確，請填寫完整的本機位址與連接埠。",
+    obsidianApiUrlNotLocal: "為了安全，API 位址只能使用 127.0.0.1 或 localhost。",
+    obsidianApiKeyLabel: "Local REST API Key",
+    obsidianApiKeyHint: "Key 只會儲存在這台電腦的 Chrome 擴充功能儲存空間中。",
+    obsidianApiKeyRequired: "請填寫 Local REST API Key。",
+    saveSettings: "儲存設定",
+    testConnection: "測試連線",
+    settingsSaving: "正在儲存…",
+    settingsSaved: "設定已儲存。",
+    settingsSavedWithoutKey: "設定已儲存；填寫 API Key 後才能測試連線。",
+    settingsSaveFailed: "設定儲存失敗，請重試。",
+    settingsLoadFailed: "設定讀取失敗，請重新開啟此頁面。",
+    obsidianTesting: "正在連線本機 Obsidian…",
+    obsidianConnected: "連線成功，Obsidian Local REST API 可用。",
+    obsidianConnectionTimeout: "連線超時。請確認 Obsidian 已開啟，且 HTTP 服務已啟用。",
+    obsidianConnectionFailed: "無法連線 Obsidian。請檢查位址、連接埠與 HTTP 服務。",
+    obsidianUnauthorized: "API Key 不正確，請從 Obsidian 外掛設定裡重新複製。",
+    obsidianHttpError: "Obsidian API 回傳 HTTP $1，請檢查外掛設定。",
+    writeToObsidian: "寫入 Obsidian",
+    obsidianWriting: "正在寫入 Obsidian…",
+    obsidianWritten: "已寫入 Obsidian：$1",
+    obsidianWritingShort: "正在寫入…",
+    obsidianWrittenShort: "已寫入 Obsidian",
+    obsidianWriteCanceledShort: "已取消",
+    obsidianWriteFailedShort: "寫入失敗",
+    obsidianOverwriteConfirm: "Obsidian 中已存在同名筆記：\n$1\n\n要覆蓋它嗎？",
+    obsidianWriteCanceled: "已取消寫入，原筆記沒有變化。",
+    obsidianNotConfigured: "Obsidian 設定不完整，請先開啟右上角設定。",
+    obsidianContentEmpty: "Markdown 內容為空，無法寫入。",
+    obsidianWriteFailed: "寫入 Obsidian 失敗，請重試。",
+    ocrLabel: "識別圖片文字",
+    ocrHint: "OCR 模型已內建，圖片只會在本機處理。",
+    ocrSelectionTitle: "識別範圍",
+    ocrSelectionAll: "全部圖片",
+    ocrSelectionSkipCover: "跳過封面",
+    ocrSelectionCustom: "自訂",
+    ocrRangePlaceholder: "例如：2-4 或 1,3-5",
+    ocrSelectionSummary: "$1/$2 張 · 頁碼 $3",
+    ocrSelectionReady: "請選擇圖片範圍，然後開始 OCR。",
+    startOcr: "開始識別",
+    rerunOcr: "重新識別",
+    ocrRangeRequired: "請輸入頁碼，例如 2-4 或 1,3-5。",
+    ocrRangeInvalid: "頁碼格式錯誤，請使用 2-4 或 1,3-5。",
+    ocrRangeBounds: "頁碼必須在 1-$1 之間。",
+    previewTitle: "Markdown 預覽",
+    copy: "複製",
+    download: "下載 .md",
+    loadingPage: "正在讀取目前頁面…",
+    ready: "已採集，可預覽或下載。",
+    unsupportedPage: "請先開啟一篇小紅書筆記。",
+    captureFailed: "採集失敗，請重新整理頁面後再試。",
+    noImages: "這篇筆記沒有可識別的圖片。",
+    ocrStarting: "正在初始化本地 OCR…",
+    ocrProgress: "已處理 $1/$2 張圖片…",
+    ocrStageRuntime: "正在載入 OCR 執行環境",
+    ocrStageModels: "正在讀取內建 OCR 模型",
+    ocrStageSessions: "正在建立 ONNX 推論工作階段",
+    ocrStageRecognizing: "正在識別圖片 $3（$1/$2）",
+    ocrStageFinalizing: "正在彙整 OCR 文字",
+    ocrPausing: "目前圖片完成後暫停",
+    ocrPaused: "OCR 已暫停",
+    ocrResumeToContinue: "繼續後重新估算時間",
+    pauseOcr: "暫停",
+    resumeOcr: "繼續",
+    stopOcr: "跳過 OCR",
+    ocrElapsed: "已用時 $1",
+    ocrRemaining: "預計還需 $1",
+    ocrFinishedIn: "總計 $1",
+    ocrEstimating: "正在估算剩餘時間",
+    ocrAverageImage: "目前每張平均 $1",
+    ocrFirstImageEstimate: "第一張通常需要 5 到 15 秒，長圖會更久",
+    ocrTimeInitialize: "初始化 $1",
+    ocrTimeRuntime: "執行環境 $1",
+    ocrTimeModels: "模型 $1",
+    ocrTimeSessions: "工作階段 $1",
+    ocrTimeRecognize: "識別 $1",
+    ocrTimeFinalize: "彙整 $1",
+    durationSeconds: "$1 秒",
+    durationMinutes: "$1 分 $2 秒",
+    ocrCompleted: "OCR 完成，已寫入預覽。",
+    ocrCanceled: "OCR 已取消。",
+    ocrFailed: "OCR 失敗：$1",
+    ocrErrorModelRead: "無法讀取內建 OCR 模型",
+    ocrErrorUnknown: "未知錯誤",
+    copied: "已複製 Markdown。",
+    copyFailed: "複製失敗，請在預覽框中手動複製。",
+    downloaded: "Markdown 已下載。",
+    downloadFailed: "下載失敗：$1",
+    sourceState: "結構化資料",
+    sourceDom: "頁面內容",
+    extractedBy: "採集來源：$1",
+    noteMeta: "$1 · $2 張圖片",
+    noteMetaOcr: "$1 · OCR $2/$3 張圖片",
+    editHint: "可以直接修改預覽內容，再下載。",
+    languageHint: "介面語言跟隨 Chrome",
+    canceling: "目前圖片完成後取消…"
+  },
   en: {
     extensionName: "Rednote Markdown Collector",
     extensionDescription: "Export the current Xiaohongshu note as plain-text Markdown with optional local OCR.",
@@ -237,13 +354,36 @@ const fallbackMessages: Record<UiLanguage, Record<string, string>> = {
   }
 };
 
+function normalizeLanguageTag(language: string): string {
+  return language.replaceAll("_", "-").toLowerCase();
+}
+
+export function resolveUiLanguage(browserLanguage: string): UiLanguage {
+  const language = normalizeLanguageTag(browserLanguage);
+  if (language === "zh-tw" || language.startsWith("zh-tw-")) return "zh-TW";
+  if (language === "zh-cn" || language.startsWith("zh-cn-")) return "zh-CN";
+  return "en";
+}
+
+function getBrowserUiLanguage(): string {
+  return (
+    globalThis.chrome?.i18n?.getUILanguage?.() ||
+    (typeof navigator !== "undefined" ? navigator.language : "en")
+  );
+}
+
 export function getUiLanguage(): UiLanguage {
   if (!globalThis.chrome?.runtime?.id && typeof location !== "undefined") {
     const previewLanguage = new URL(location.href).searchParams.get("lang");
-    if (previewLanguage === "en" || previewLanguage === "zh-CN") return previewLanguage;
+    if (
+      previewLanguage === "en" ||
+      previewLanguage === "zh-CN" ||
+      previewLanguage === "zh-TW"
+    ) {
+      return previewLanguage;
+    }
   }
-  const browserLanguage = globalThis.chrome?.i18n?.getUILanguage?.() || navigator.language;
-  return browserLanguage.toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+  return resolveUiLanguage(getBrowserUiLanguage());
 }
 
 export function createMessageGetter(language = getUiLanguage()) {

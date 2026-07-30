@@ -45,7 +45,7 @@ OCR runs with bundled PP-OCRv6 Tiny models. Images and recognized text are not s
 1. Open the [latest release](https://github.com/LinkisLethe/xhs-clipper/releases/latest) and download `xhs-clipper-v0.4.0.zip`.
 2. Extract the ZIP file. Chrome cannot load the ZIP directly.
 3. Open `chrome://extensions/` and enable **Developer mode**.
-4. Select **Load unpacked**, then choose the extracted folder that contains `manifest.json`.
+4. Select **Load unpacked**, then choose the extracted `xhs-clipper-v0.4.0` folder.
 
 The packaged extension does not require Node.js or pnpm. After installation, pin XHS Clipper to the Chrome toolbar, open a Xiaohongshu image post, and click the extension icon.
 

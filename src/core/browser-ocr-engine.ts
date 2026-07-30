@@ -1,5 +1,5 @@
 /*
- * Browser-only PP-OCRv6 benchmark.
+ * Browser-only PP-OCRv6 OCR engine.
  * Model preprocessing and decoding follow PaddleOCR.js behavior (Apache-2.0),
  * while OpenCV-dependent geometry is replaced with Canvas and TypeScript.
  */

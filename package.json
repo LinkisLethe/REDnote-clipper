@@ -7,10 +7,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "benchmark:dev": "vite --config vite.benchmark.config.ts",
-    "benchmark:build": "tsc --noEmit -p tsconfig.benchmark.json && vite build --config vite.benchmark.config.ts",
-    "benchmark:preview": "vite preview --config vite.benchmark.config.ts --host 127.0.0.1 --port 4173",
-    "benchmark:start": "pnpm benchmark:build && pnpm benchmark:preview",
     "build": "tsc --noEmit && vite build",
     "verify": "pnpm test && pnpm build && node scripts/verify-dist.mjs",
     "test": "vitest run",

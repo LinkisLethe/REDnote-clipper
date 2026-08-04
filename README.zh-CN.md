@@ -42,8 +42,8 @@ OCR 使用内置 PP-OCRv6 Tiny 模型。图片和识别结果不会发送给远�
 
 ### 直接安装
 
-1. 打开 [Releases](https://github.com/LinkisLethe/xhs-clipper/releases/latest)，下载 `xhs-clipper-v0.4.0.zip`。
-2. 解压 ZIP。Chrome 不能直接加载压缩包。
+1. 打开 [Releases](https://github.com/LinkisLethe/xhs-clipper/releases/latest)，在 Assets 中下载 `xhs-clipper-v0.4.0.zip`。不要下载 GitHub 自动生成的 `Source code`。
+2. 解压 ZIP，得到 `xhs-clipper-v0.4.0` 文件夹。Chrome 不能直接加载压缩包。
 3. 在 Chrome 地址栏输入 `chrome://extensions/`，打开右上角的“开发者模式”。
 4. 点击“加载已解压的扩展程序”，直接选择解压后的 `xhs-clipper-v0.4.0` 文件夹。
 

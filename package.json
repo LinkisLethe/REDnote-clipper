@@ -8,6 +8,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "benchmark:job": "vitest run --config vitest.stress.config.ts",
+    "benchmark:ocr": "node scripts/benchmark-ocr.mjs",
+    "benchmark:ocr:build": "vite build --config vite.benchmark.config.ts",
     "verify": "pnpm test && pnpm build && node scripts/verify-dist.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -19,6 +22,7 @@
     "@types/chrome": "latest",
     "@types/node": "latest",
     "jsdom": "latest",
+    "playwright-core": "1.62.0",
     "typescript": "latest",
     "vite": "latest",
     "vitest": "latest"

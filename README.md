@@ -148,7 +148,11 @@ Use the extension only for content you are permitted to access and process. You 
 pnpm test
 pnpm build
 pnpm verify
+pnpm benchmark:job
+pnpm benchmark:ocr
 ```
+
+The OCR benchmark is built and served separately so benchmark assets never enter the extension package. Set `CHROME_PATH` if Chrome is not installed at the platform default path. Use `OCR_BENCHMARK_ITERATIONS` and `OCR_BENCHMARK_WARMUP` to change the run length.
 
 The code is split into page extraction, OCR, text post-processing, Markdown export, and Obsidian writing. Future search or Skill entry points can reuse the existing `Note` data structure.
 

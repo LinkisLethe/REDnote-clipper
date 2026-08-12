@@ -167,3 +167,22 @@ export interface PopupJobUpdate {
   type: "OCR_JOB_UPDATED";
   job: OcrJob;
 }
+
+export interface PopupJobProgressPatch {
+  target: "popup";
+  type: "OCR_JOB_PROGRESS";
+  jobId: string;
+  patch: Partial<
+    Pick<
+      OcrJob,
+      | "stage"
+      | "progress"
+      | "stageStartedAt"
+      | "currentImage"
+      | "currentSourceImage"
+      | "currentImageStartedAt"
+      | "stageDurations"
+      | "updatedAt"
+    >
+  >;
+}

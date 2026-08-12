@@ -677,10 +677,14 @@ async function runSession(session: ort.InferenceSession, tensor: ort.Tensor): Pr
   const inputName = session.inputNames[0];
   const outputName = session.outputNames[0];
   if (!inputName || !outputName) throw new Error("模型输入或输出名称缺失");
-  const outputs = await session.run({ [inputName]: tensor });
-  const output = outputs[outputName];
-  if (!output) throw new Error("模型没有返回输出");
-  return output;
+  try {
+    const outputs = await session.run({ [inputName]: tensor });
+    const output = outputs[outputName];
+    if (!output) throw new Error("模型没有返回输出");
+    return output;
+  } finally {
+    tensor.dispose();
+  }
 }
 
 export class BrowserOcrEngine {
@@ -777,7 +781,12 @@ export class BrowserOcrEngine {
 
     report("整理文字区域");
     const detPostStart = now();
-    const boxes = decodeDetection(detectionOutput, prep);
+    let boxes: DetectionBox[];
+    try {
+      boxes = decodeDetection(detectionOutput, prep);
+    } finally {
+      detectionOutput.dispose();
+    }
     const detectionPostprocessMs = elapsed(detPostStart);
 
     report(`裁剪 ${boxes.length} 个文字区域`);
@@ -800,7 +809,12 @@ export class BrowserOcrEngine {
       const output = await runSession(recognitionSession, packRecognitionBatch(batch));
       recognitionInferenceMs += elapsed(inferenceStart);
       const decodeStart = now();
-      const batchResults = decodeRecognition(output, this.dictionary);
+      let batchResults: Array<{ text: string; score: number }>;
+      try {
+        batchResults = decodeRecognition(output, this.dictionary);
+      } finally {
+        output.dispose();
+      }
       recognitionDecodeMs += elapsed(decodeStart);
       batchResults.forEach((result, index) => {
         const sample = batch[index];

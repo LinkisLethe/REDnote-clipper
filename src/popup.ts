@@ -24,6 +24,7 @@ import type {
   BackgroundRequest,
   Note,
   OcrJob,
+  PopupJobProgressPatch,
   PopupJobUpdate
 } from "./core/types";
 
@@ -671,9 +672,19 @@ async function initialize(): Promise<void> {
     const settings = await chrome.storage.local.get(OCR_ENABLED_KEY);
     ocrToggle.checked = Boolean(settings[OCR_ENABLED_KEY]);
     chrome.runtime.onMessage.addListener((incoming: unknown) => {
-      const update = incoming as Partial<PopupJobUpdate>;
-      if (update.target === "popup" && update.type === "OCR_JOB_UPDATED" && update.job) {
-        applyJob(update.job);
+      const update = incoming as Partial<PopupJobUpdate | PopupJobProgressPatch>;
+      if (update.target === "popup" && update.type === "OCR_JOB_UPDATED") {
+        applyJob((update as PopupJobUpdate).job);
+      }
+      if (
+        update.target === "popup" &&
+        update.type === "OCR_JOB_PROGRESS" &&
+        currentJob?.id === (update as PopupJobProgressPatch).jobId
+      ) {
+        const progress = update as PopupJobProgressPatch;
+        const nextJob = { ...currentJob, ...progress.patch };
+        currentJob = nextJob;
+        renderOcrProgress(nextJob);
       }
       return false;
     });

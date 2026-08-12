@@ -149,7 +149,11 @@ XHS Clipper 是独立开发的非官方项目，与小红书没有隶属、认�
 pnpm test
 pnpm build
 pnpm verify
+pnpm benchmark:job
+pnpm benchmark:ocr
 ```
+
+OCR 浏览器基准会自动完成构建、启动临时服务器、运行 Chrome 和关闭服务器，基准资源不会进入扩展安装包。如果 Chrome 不在系统默认路径，可通过 `CHROME_PATH` 指定。测试轮数可由 `OCR_BENCHMARK_ITERATIONS` 和 `OCR_BENCHMARK_WARMUP` 调整。
 
 代码按页面提取、OCR、文字后处理、Markdown 导出和 Obsidian 写入拆分。以后增加搜索或 Skill 入口时，可以继续使用现有 `Note` 数据结构。
 

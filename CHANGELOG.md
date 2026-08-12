@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Performance
+
+- Added repeatable OCR and large-job stress benchmarks.
+- Reduced large OCR job state size by compacting processed line geometry after formatting.
+- Replaced long-image PNG re-encoding with streamed in-memory tiles.
+- Avoided full job persistence and popup redraws for transient per-image stage updates.
+- Released ONNX input and output tensors explicitly after each inference.
+
 - Licensed the project under Apache License 2.0 with Hongjia LIN as the copyright holder.
 - Added third-party notices for PaddleOCR models and ONNX Runtime Web.
 - Added responsible-use and unofficial-project notices to both READMEs.

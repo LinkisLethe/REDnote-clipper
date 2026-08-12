@@ -1,6 +1,7 @@
 node_modules/
 dist/
 benchmark-dist/
+.benchmark-dist/
 artifacts/
 .vite/
 coverage/

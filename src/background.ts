@@ -3,6 +3,7 @@ import type {
   Note,
   OcrJob,
   OffscreenRequest,
+  PopupJobProgressPatch,
   PopupJobUpdate
 } from "./core/types";
 import {
@@ -241,6 +242,14 @@ async function notifyPopup(job: OcrJob): Promise<void> {
   }
 }
 
+async function notifyPopupProgress(message: PopupJobProgressPatch): Promise<void> {
+  try {
+    await chrome.runtime.sendMessage(message);
+  } catch {
+    // The popup may be closed. The next persisted OCR result restores durable progress.
+  }
+}
+
 function selectedOcrImages(
   note: Note,
   requestedIndexes: number[]
@@ -342,6 +351,24 @@ async function updateStage(
     stageDurations: { ...job.stageDurations, ...message.stageDurations },
     updatedAt: new Date().toISOString()
   };
+  if (message.stage === "recognizing-images" && job.stage === "recognizing-images") {
+    await notifyPopupProgress({
+      target: "popup",
+      type: "OCR_JOB_PROGRESS",
+      jobId: job.id,
+      patch: {
+        stage: updated.stage,
+        progress: updated.progress,
+        stageStartedAt: updated.stageStartedAt,
+        currentImage: updated.currentImage,
+        currentSourceImage: updated.currentSourceImage,
+        currentImageStartedAt: updated.currentImageStartedAt,
+        stageDurations: updated.stageDurations,
+        updatedAt: updated.updatedAt
+      }
+    });
+    return updated;
+  }
   await saveJob(updated);
   await notifyPopup(updated);
   return updated;

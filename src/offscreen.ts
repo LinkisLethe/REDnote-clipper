@@ -1,7 +1,4 @@
-import {
-  BrowserOcrEngine,
-  decodeImageBlob
-} from "./core/browser-ocr-engine";
+import { BrowserOcrEngine } from "./core/browser-ocr-engine";
 import type {
   BackgroundRequest,
   OcrImageResult,
@@ -11,6 +8,7 @@ import type {
   OffscreenRequest
 } from "./core/types";
 import { createOrderedPrefetcher } from "./core/ordered-prefetch";
+import { compactOcrResult } from "./core/ocr-result";
 
 const IMAGE_PREFETCH_WINDOW = 3;
 const OCR_NUM_THREADS = 4;
@@ -128,7 +126,7 @@ function ensureOcrInstance(): Promise<OcrInstance> {
 }
 
 interface ImageTile {
-  blob: Blob;
+  image: ImageData;
   top: number;
 }
 
@@ -138,28 +136,22 @@ interface DownloadedImage {
   error?: string;
 }
 
-async function canvasToBlob(canvas: OffscreenCanvas, type: string): Promise<Blob> {
-  return canvas.convertToBlob({ type: type || "image/png", quality: 0.96 });
-}
-
-async function splitLongImage(blob: Blob): Promise<ImageTile[]> {
+async function* decodeImageTiles(blob: Blob): AsyncGenerator<ImageTile> {
   const bitmap = await createImageBitmap(blob);
   try {
     const tileHeight = Math.max(1200, Math.min(2200, Math.round(bitmap.width * 1.6)));
-    if (bitmap.height <= tileHeight * 1.15) return [{ blob, top: 0 }];
+    const shouldSplit = bitmap.height > tileHeight * 1.15;
     const overlap = Math.min(140, Math.round(tileHeight * 0.08));
     const step = tileHeight - overlap;
-    const tiles: ImageTile[] = [];
-    for (let top = 0; top < bitmap.height; top += step) {
-      const height = Math.min(tileHeight, bitmap.height - top);
+    for (let top = 0; top < bitmap.height; top += shouldSplit ? step : bitmap.height) {
+      const height = shouldSplit ? Math.min(tileHeight, bitmap.height - top) : bitmap.height;
       const canvas = new OffscreenCanvas(bitmap.width, height);
-      const context = canvas.getContext("2d");
+      const context = canvas.getContext("2d", { willReadFrequently: true });
       if (!context) throw new Error("Canvas 2D is unavailable.");
       context.drawImage(bitmap, 0, top, bitmap.width, height, 0, 0, bitmap.width, height);
-      tiles.push({ blob: await canvasToBlob(canvas, "image/png"), top });
+      yield { image: context.getImageData(0, 0, bitmap.width, height), top };
       if (top + height >= bitmap.height) break;
     }
-    return tiles;
   } finally {
     bitmap.close();
   }
@@ -225,12 +217,10 @@ async function recognizeImageWithInstance(
   const startedAt = performance.now();
   try {
     if (!downloaded.blob) throw new Error(downloaded.error || "Image download failed.");
-    const tiles = await splitLongImage(downloaded.blob);
     const lines: OcrLine[] = [];
-    for (const tile of tiles) {
+    for await (const tile of decodeImageTiles(downloaded.blob)) {
       if (canceledJobs.has(jobId)) break;
-      const image = await decodeImageBlob(tile.blob);
-      const result = await ocr.recognize(image);
+      const result = await ocr.recognize(tile.image);
       lines.push(
         ...result.lines.map((line) => ({
           text: line.text.trim(),
@@ -240,13 +230,13 @@ async function recognizeImageWithInstance(
       );
     }
     const cleaned = dedupeAdjacentLines(lines);
-    return {
+    return compactOcrResult({
       imageIndex,
       text: cleaned.map((line) => line.text).join("\n"),
       lines: cleaned,
       status: cleaned.length > 0 ? "success" : "empty",
       durationMs: downloaded.durationMs + Math.round(performance.now() - startedAt)
-    };
+    });
   } catch (error) {
     return {
       imageIndex,

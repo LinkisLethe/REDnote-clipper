@@ -149,6 +149,15 @@ async function autoClipPanelState(task?: AutoClipTask): Promise<AutoClipPanelSta
   };
 }
 
+async function initialAutoClipPanelState(): Promise<AutoClipPanelState> {
+  await recoverAutoClipQueue();
+  const stored = await chrome.storage.local.get(AUTO_CLIP_TASK_KEY);
+  const task = stored[AUTO_CLIP_TASK_KEY] as AutoClipTask | undefined;
+  if (task?.running) return autoClipPanelState(task);
+  if (task) await chrome.storage.local.remove(AUTO_CLIP_TASK_KEY);
+  return autoClipPanelState();
+}
+
 async function notifyAutoClip(task: AutoClipTask): Promise<void> {
   const state = await autoClipPanelState(task);
   const message: AutoClipStatusMessage = {
@@ -873,7 +882,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
       );
       break;
     case "GET_AUTO_CLIP_STATE":
-      operation = recoverAutoClipQueue().then(() => autoClipPanelState());
+      operation = initialAutoClipPanelState();
       break;
     case "WRITE_OBSIDIAN_NOTE":
       operation = writeObsidianNote(

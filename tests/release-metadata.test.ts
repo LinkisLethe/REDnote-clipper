@@ -12,11 +12,23 @@ describe("release metadata", () => {
       version: string;
       default_locale: string;
     };
-    expect(packageJson.version).toBe("0.4.0");
+    expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(manifest.version).toBe(packageJson.version);
     expect(manifest.default_locale).toBe("en");
     expect(packageJson.license).toBe("Apache-2.0");
     expect(packageJson.author).toBe("Hongjia LIN");
+
+    const english = readFileSync("README.md", "utf8");
+    const chinese = readFileSync("README.zh-CN.md", "utf8");
+    const changelog = readFileSync("CHANGELOG.md", "utf8");
+    const releaseNotes = readFileSync(`docs/releases/v${packageJson.version}.md`, "utf8");
+    const archiveName = `xhs-clipper-v${packageJson.version}.zip`;
+    expect(english).toContain(`version-${packageJson.version}`);
+    expect(english).toContain(archiveName);
+    expect(chinese).toContain(`version-${packageJson.version}`);
+    expect(chinese).toContain(archiveName);
+    expect(changelog).toContain(`## ${packageJson.version} -`);
+    expect(releaseNotes).toContain(archiveName);
   });
 
   it("documents the current Obsidian feature and privacy behavior", () => {

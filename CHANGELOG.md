@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.1 - 2026-08-13
+
 ### Performance
 
 - Added repeatable OCR and large-job stress benchmarks.
@@ -10,13 +12,20 @@
 - Avoided full job persistence and popup redraws for transient per-image stage updates.
 - Released ONNX input and output tensors explicitly after each inference.
 
+### Documentation
+
+- Clarified how to download, extract, and load the packaged Chrome extension.
+- Added measured OCR and large-job performance results with reproduction commands.
+
+## 0.4.0 - 2026-07-30
+
+### Project
+
 - Licensed the project under Apache License 2.0 with Hongjia LIN as the copyright holder.
 - Added third-party notices for PaddleOCR models and ONNX Runtime Web.
 - Added responsible-use and unofficial-project notices to both READMEs.
 - Removed unused PP-OCRv6 Small model files from the repository.
 - Removed development-only OCR benchmark files and archived internal planning notes locally.
-
-## 0.4.0 - 2026-07-29
 
 ### Added
 

@@ -10,9 +10,9 @@
 
 <p align="center">
   <a href="https://www.google.com/chrome/"><img src="https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&amp;logoColor=white&amp;style=flat-square" alt="Chrome 116+" /></a>
-  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&amp;logoColor=white&amp;style=flat-square" alt="TypeScript 5.x" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-7.x-3178C6?logo=typescript&amp;logoColor=white&amp;style=flat-square" alt="TypeScript 7.x" /></a>
   <a href="https://github.com/PaddlePaddle/PaddleOCR"><img src="https://img.shields.io/badge/OCR-PP--OCRv6-0C7BDC?style=flat-square" alt="PP-OCRv6" /></a>
-  <a href="https://github.com/LinkisLethe/xhs-clipper"><img src="https://img.shields.io/badge/version-0.4.0-D8473E?style=flat-square" alt="版本 0.4.0" /></a>
+  <a href="https://github.com/LinkisLethe/xhs-clipper/releases/latest"><img src="https://img.shields.io/badge/version-0.4.1-D8473E?style=flat-square" alt="版本 0.4.1" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-7B68EE?style=flat-square" alt="Apache 2.0 许可证" /></a>
 </p>
 
@@ -42,10 +42,10 @@ OCR 使用内置 PP-OCRv6 Tiny 模型。图片和识别结果不会发送给远�
 
 ### 直接安装
 
-1. 打开 [Releases](https://github.com/LinkisLethe/xhs-clipper/releases/latest)，在 Assets 中下载 `xhs-clipper-v0.4.0.zip`。不要下载 GitHub 自动生成的 `Source code`。
-2. 解压 ZIP，得到 `xhs-clipper-v0.4.0` 文件夹。Chrome 不能直接加载压缩包。
+1. 打开 [Releases](https://github.com/LinkisLethe/xhs-clipper/releases/latest)，在 Assets 中下载 `xhs-clipper-v0.4.1.zip`。不要下载 GitHub 自动生成的 `Source code`。
+2. 解压 ZIP，得到 `xhs-clipper-v0.4.1` 文件夹。Chrome 不能直接加载压缩包。
 3. 在 Chrome 地址栏输入 `chrome://extensions/`，打开右上角的“开发者模式”。
-4. 点击“加载已解压的扩展程序”，直接选择解压后的 `xhs-clipper-v0.4.0` 文件夹。
+4. 点击“加载已解压的扩展程序”，直接选择解压后的 `xhs-clipper-v0.4.1` 文件夹。
 
 直接安装不需要 Node.js 或 pnpm。安装完成后，把 XHS Clipper 固定到浏览器工具栏，打开一篇小红书图文笔记，再点击扩展图标。
 

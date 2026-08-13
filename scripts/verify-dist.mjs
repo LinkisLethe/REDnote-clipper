@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const dist = resolve(root, "dist");
+const packageJson = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
 const requiredFiles = [
   "manifest.json",
   "popup.html",
@@ -38,6 +39,9 @@ for (const file of [
 
 const manifest = JSON.parse(await readFile(resolve(dist, "manifest.json"), "utf8"));
 if (manifest.manifest_version !== 3) throw new Error("manifest_version must be 3");
+if (manifest.version !== packageJson.version) {
+  throw new Error("Built extension version does not match package.json");
+}
 if (manifest.default_locale !== "en") throw new Error("default_locale must be en");
 if (manifest.background?.service_worker !== "assets/background.js") {
   throw new Error("Background service worker path does not match the build output");

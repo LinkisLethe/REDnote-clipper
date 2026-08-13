@@ -10,9 +10,9 @@
 
 <p align="center">
   <a href="https://www.google.com/chrome/"><img src="https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&amp;logoColor=white&amp;style=flat-square" alt="Chrome 116+" /></a>
-  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&amp;logoColor=white&amp;style=flat-square" alt="TypeScript 5.x" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-7.x-3178C6?logo=typescript&amp;logoColor=white&amp;style=flat-square" alt="TypeScript 7.x" /></a>
   <a href="https://github.com/PaddlePaddle/PaddleOCR"><img src="https://img.shields.io/badge/OCR-PP--OCRv6-0C7BDC?style=flat-square" alt="PP-OCRv6" /></a>
-  <a href="https://github.com/LinkisLethe/xhs-clipper"><img src="https://img.shields.io/badge/version-0.4.0-D8473E?style=flat-square" alt="Version 0.4.0" /></a>
+  <a href="https://github.com/LinkisLethe/xhs-clipper/releases/latest"><img src="https://img.shields.io/badge/version-0.4.1-D8473E?style=flat-square" alt="Version 0.4.1" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-7B68EE?style=flat-square" alt="Apache 2.0 license" /></a>
 </p>
 
@@ -42,10 +42,10 @@ OCR runs with bundled PP-OCRv6 Tiny models. Images and recognized text are not s
 
 ### Install the packaged extension
 
-1. Open the [latest release](https://github.com/LinkisLethe/xhs-clipper/releases/latest) and download `xhs-clipper-v0.4.0.zip` from **Assets**. Do not download GitHub's automatically generated **Source code** archives.
-2. Extract the ZIP to get the `xhs-clipper-v0.4.0` folder. Chrome cannot load the ZIP directly.
+1. Open the [latest release](https://github.com/LinkisLethe/xhs-clipper/releases/latest) and download `xhs-clipper-v0.4.1.zip` from **Assets**. Do not download GitHub's automatically generated **Source code** archives.
+2. Extract the ZIP to get the `xhs-clipper-v0.4.1` folder. Chrome cannot load the ZIP directly.
 3. Open `chrome://extensions/` and enable **Developer mode**.
-4. Select **Load unpacked**, then choose the extracted `xhs-clipper-v0.4.0` folder.
+4. Select **Load unpacked**, then choose the extracted `xhs-clipper-v0.4.1` folder.
 
 The packaged extension does not require Node.js or pnpm. After installation, pin XHS Clipper to the Chrome toolbar, open a Xiaohongshu image post, and click the extension icon.
 

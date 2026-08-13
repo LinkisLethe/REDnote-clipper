@@ -18,6 +18,7 @@ import {
 import { createMarkdownFilename } from "./core/filename";
 import { applyOcrResults, renderMarkdown } from "./core/markdown";
 import { isXiaohongshuNoteUrl, noteIdFromXiaohongshuUrl } from "./core/automation";
+import { resolveOcrImageIndexes, type OcrSelectionMode } from "./core/ocr-selection";
 import {
   OCR_ENABLED_KEY,
   OCR_PIPELINE_VERSION,
@@ -50,6 +51,9 @@ interface AutoClipTask {
   running: boolean;
   output: "download" | "obsidian";
   duplicatePolicy: "skip" | "rerun";
+  ocrEnabled: boolean;
+  ocrMode: OcrSelectionMode;
+  ocrRange: string;
   currentIndex: number;
   progress: number;
   queue: AutoClipQueueItem[];
@@ -269,6 +273,29 @@ async function exportAutoClip(
   });
 }
 
+async function recordAutoClipSuccess(
+  task: AutoClipTask,
+  note: Note,
+  markdown: string,
+  index: number
+): Promise<AutoClipTask> {
+  const filename = createMarkdownFilename(note.title, note.authorName, note.publishedAt);
+  await exportAutoClip(task, note, markdown, filename);
+  const history = await getAutoClipHistory();
+  const entry: AutoClipHistoryEntry = {
+    noteId: note.id,
+    title: note.title,
+    url: note.url,
+    filename,
+    output: task.output,
+    completedAt: new Date().toISOString()
+  };
+  await chrome.storage.local.set({
+    [AUTO_CLIP_HISTORY_KEY]: [entry, ...history.filter((item) => item.noteId !== note.id)].slice(0, 200)
+  });
+  return updateQueueItem(task, index, { status: "completed", filename, error: undefined });
+}
+
 async function finishAutoClipQueue(task: AutoClipTask): Promise<void> {
   const finished = { ...task, running: false, progress: 100, articleTabId: undefined, jobId: undefined, note: undefined };
   await saveAutoClipTask(finished);
@@ -359,7 +386,23 @@ async function processAutoClipQueue(taskId: string): Promise<void> {
       continueAutoClipQueue(taskId);
       return;
     }
-    const job = await startOcr(note, note.images.map((_image, index) => index));
+    if (!task.ocrEnabled) {
+      task = updateQueueItem({ ...task, progress: 92 }, nextIndex, { status: "exporting", noteId: note.id });
+      await saveAutoClipTask(task);
+      task = await recordAutoClipSuccess(
+        task,
+        note,
+        renderMarkdown(note, { language: "zh-CN", includeOcr: false }),
+        nextIndex
+      );
+      await chrome.tabs.remove(articleTabId).catch(() => undefined);
+      await saveAutoClipTask({ ...task, articleTabId: undefined, progress: 0 });
+      continueAutoClipQueue(taskId);
+      return;
+    }
+    const selection = resolveOcrImageIndexes(task.ocrMode, task.ocrRange, note.images.length);
+    if (!selection.ok) throw new Error(`AUTO_CLIP_OCR_SELECTION:${selection.error}`);
+    const job = await startOcr(note, selection.imageIndexes);
     task = updateQueueItem({ ...task, jobId: job.id, note, progress: job.progress }, nextIndex, {
       status: "ocr",
       noteId: note.id
@@ -404,6 +447,9 @@ async function startAutoClipBatch(
       running: true,
       output: request.output,
       duplicatePolicy: request.duplicatePolicy,
+      ocrEnabled: request.ocrEnabled,
+      ocrMode: request.ocrMode,
+      ocrRange: request.ocrRange,
       currentIndex: 0,
       progress: 0,
       queue: unique.map((item) => ({ ...item, status: "queued" })),
@@ -437,21 +483,7 @@ async function finishAutoClip(job: OcrJob): Promise<void> {
     await saveAutoClipTask(task);
     const note = applyOcrResults(sourceNote, job.results);
     const markdown = renderMarkdown(note, { language: "zh-CN", includeOcr: true });
-    const filename = createMarkdownFilename(note.title, note.authorName, note.publishedAt);
-    await exportAutoClip(task, note, markdown, filename);
-    const history = await getAutoClipHistory();
-    const entry: AutoClipHistoryEntry = {
-      noteId: note.id,
-      title: note.title,
-      url: note.url,
-      filename,
-      output: task.output,
-      completedAt: new Date().toISOString()
-    };
-    await chrome.storage.local.set({
-      [AUTO_CLIP_HISTORY_KEY]: [entry, ...history.filter((item) => item.noteId !== note.id)].slice(0, 200)
-    });
-    task = updateQueueItem(task, index, { status: "completed", filename, error: undefined });
+    task = await recordAutoClipSuccess(task, note, markdown, index);
   } catch (error) {
     task = updateQueueItem(task, index, {
       status: "error",

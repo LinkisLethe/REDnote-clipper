@@ -73,6 +73,10 @@ const errorLabels: Record<string, string> = {
   AUTO_CLIP_NO_IMAGES: "文章没有可识别的图片",
   AUTO_CLIP_DUPLICATE: "已处理过",
   AUTO_CLIP_OCR_FAILED: "OCR 失败",
+  "AUTO_CLIP_OCR_SELECTION:range-required": "请填写 OCR 图片页码",
+  "AUTO_CLIP_OCR_SELECTION:range-invalid": "OCR 页码格式无效，请使用 1,3-5",
+  "AUTO_CLIP_OCR_SELECTION:range-out-of-bounds": "OCR 页码超出当前文章的图片数量",
+  "AUTO_CLIP_OCR_SELECTION:no-images": "当前文章没有可 OCR 的图片",
   OBSIDIAN_NOT_CONFIGURED: "Obsidian 尚未配置",
   OBSIDIAN_CONNECTION_TIMEOUT: "Obsidian 连接超时",
   OBSIDIAN_CONNECTION_FAILED: "无法连接 Obsidian",
@@ -156,7 +160,10 @@ async function startBatch(items: AutoClipCandidate[], output: AutoClipOutput): P
     type: "AUTO_CLIP_BATCH",
     items,
     output,
-    duplicatePolicy
+    duplicatePolicy,
+    ocrEnabled: panelElement<HTMLInputElement>("[data-role='ocr-enabled']").checked,
+    ocrMode: panelElement<HTMLInputElement>('input[name="xhs-auto-ocr-mode"]:checked').value as "all" | "skip-cover" | "custom",
+    ocrRange: panelElement<HTMLInputElement>("[data-role='ocr-range']").value
   }) as AutoClipPanelState | { error?: string };
   if ("error" in response && response.error) throw new Error(response.error);
   panelState = response as AutoClipPanelState;
@@ -179,6 +186,9 @@ function renderTaskState(): void {
   const queue = panelElement<HTMLElement>("[data-role='queue']");
   const current = panelState.queue[panelState.currentIndex];
   progress.style.width = `${Math.max(0, Math.min(100, panelState.progress))}%`;
+  panelElement<HTMLElement>("[data-role='progress-label']").textContent = panelState.running
+    ? `任务进度 ${panelState.progress}%`
+    : "任务进度";
   summary.textContent = panelState.running
     ? `${panelState.currentIndex + 1}/${panelState.total} · ${current?.title || "准备任务"} · ${stageLabels[panelState.stage || ""] || statusLabels[current?.status || ""] || "处理中"} · ${panelState.progress}%`
     : panelState.queue.length > 0
@@ -264,15 +274,20 @@ function createControlPanel(): void {
   panel.innerHTML = `
     <header data-role="header"><strong>XHS Clipper Automation Lab</strong><span><button data-action="resize" title="放大或还原">□</button><button data-action="minimize" title="最小化">－</button></span></header>
     <main data-role="body">
-      <label>关键词<input data-role="query" type="text" placeholder="例如 新二 cs"></label>
-      <div class="xhs-actions"><button data-action="search">查找相关文章</button><span data-role="match-count">匹配 0 篇</span><span data-role="selected-count">已选 0 篇</span></div>
-      <div class="xhs-selection-actions"><button type="button" data-action="select-all">全选</button><button type="button" data-action="select-none">取消全选</button></div>
-      <div data-role="matches" class="xhs-scroll"></div>
-      <fieldset><legend>输出方式</legend><label><input type="radio" name="xhs-auto-output" value="download" checked> Chrome 默认下载路径</label><label><input type="radio" name="xhs-auto-output" value="obsidian"> Obsidian · Clippings/XHS</label><button type="button" data-action="obsidian-settings">配置实验版 Obsidian</button></fieldset>
-      <button data-action="start" class="xhs-primary">剪藏已勾选文章</button>
-      <div class="xhs-progress"><i data-role="progress"></i></div>
-      <p data-role="summary">当前没有运行中的任务</p>
-      <div data-role="queue" class="xhs-scroll xhs-queue"></div>
+      <section class="xhs-column xhs-column-main">
+        <label class="xhs-query">关键词<input data-role="query" type="text" placeholder="例如 新二 cs"></label>
+        <div class="xhs-toolbar"><button data-action="search" class="xhs-search">查找相关文章</button><span class="xhs-badge" data-role="match-count">匹配 0 篇</span><span class="xhs-badge" data-role="selected-count">已选 0 篇</span><span class="xhs-toolbar-spacer"></span><button type="button" data-action="select-all">全选</button><button type="button" data-action="select-none">取消全选</button></div>
+        <div data-role="matches" class="xhs-scroll xhs-matches"></div>
+      </section>
+      <section class="xhs-column xhs-column-settings">
+        <fieldset><legend>内容识别</legend><label class="xhs-switch-row"><input type="checkbox" data-role="ocr-enabled" checked><span><strong>启用本地 OCR</strong><small>关闭后只保存网页正文与原图</small></span></label><div data-role="ocr-options" class="xhs-ocr-options"><label><input type="radio" name="xhs-auto-ocr-mode" value="all" checked> 全部图片</label><label><input type="radio" name="xhs-auto-ocr-mode" value="skip-cover"> 跳过封面</label><label><input type="radio" name="xhs-auto-ocr-mode" value="custom"> 自定义页码</label><input data-role="ocr-range" type="text" placeholder="例如 1,3-5" disabled></div></fieldset>
+        <fieldset><legend>导出位置</legend><label><input type="radio" name="xhs-auto-output" value="download" checked> Chrome 默认下载路径</label><label><input type="radio" name="xhs-auto-output" value="obsidian"> Obsidian · Clippings/XHS</label><button type="button" data-action="obsidian-settings" class="xhs-settings-button">配置实验版 Obsidian</button></fieldset>
+        <button data-action="start" class="xhs-primary">剪藏已勾选文章</button>
+        <div class="xhs-progress-head"><span data-role="progress-label">任务进度</span></div>
+        <div class="xhs-progress"><i data-role="progress"></i></div>
+        <p data-role="summary">当前没有运行中的任务</p>
+        <div data-role="queue" class="xhs-scroll xhs-queue"></div>
+      </section>
     </main>`;
   Object.assign(panel.style, {
     position: "fixed", right: "20px", top: "76px", zIndex: "2147483647",
@@ -282,7 +297,7 @@ function createControlPanel(): void {
     boxShadow: "0 10px 36px rgba(0,0,0,.20)", color: "#222", font: "13px/1.45 system-ui,sans-serif"
   });
   const style = document.createElement("style");
-  style.textContent = `#${PANEL_ID} *{box-sizing:border-box}#${PANEL_ID} header{height:42px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;background:#faf6f5;cursor:move}#${PANEL_ID} header button{border:0;background:transparent;font-size:18px;cursor:pointer}#${PANEL_ID} main{height:calc(100% - 42px);padding:12px 12px 24px;overflow:auto;overscroll-behavior:contain}#${PANEL_ID} main>label{display:grid;gap:4px}#${PANEL_ID} input[type=text]{width:100%;padding:8px;border:1px solid #ccc;border-radius:8px}#${PANEL_ID} input[type=checkbox],#${PANEL_ID} input[type=radio]{appearance:auto!important;-webkit-appearance:auto!important;display:inline-block!important;flex:0 0 16px!important;width:16px!important;height:16px!important;margin:2px 0!important;padding:0!important;opacity:1!important;visibility:visible!important;accent-color:#d8473e;clip:auto!important;position:static!important}#${PANEL_ID} .xhs-actions,#${PANEL_ID} .xhs-selection-actions{display:flex;align-items:center;gap:10px;margin:8px 0;flex-wrap:wrap}#${PANEL_ID} .xhs-selection-actions{margin-top:0}#${PANEL_ID} .xhs-selection-actions button{padding:3px 8px;font-size:12px}#${PANEL_ID} button{padding:7px 10px;border:1px solid #d8473e;border-radius:8px;background:white;color:#d8473e;cursor:pointer}#${PANEL_ID} button:disabled{opacity:.5;cursor:not-allowed}#${PANEL_ID} .xhs-primary{width:100%;margin:10px 0;background:#d8473e;color:white}#${PANEL_ID} fieldset{display:grid;gap:8px;margin:12px 0;padding:10px 12px 12px;border:1px solid #ddd;border-radius:8px;min-width:0}#${PANEL_ID} fieldset label{display:flex;align-items:flex-start;gap:8px}#${PANEL_ID} .xhs-scroll{max-height:145px;overflow:auto}#${PANEL_ID} .xhs-queue{max-height:190px;padding-bottom:10px}#${PANEL_ID} .xhs-progress{height:8px;margin:2px 0 12px;background:#eee;border-radius:999px;overflow:hidden}#${PANEL_ID} .xhs-progress i{display:block;height:100%;width:0;background:#d8473e;transition:width .2s}#${PANEL_ID} [data-role=summary]{margin:0 0 10px;line-height:1.6}#${PANEL_ID}.is-minimized{width:250px!important;height:42px!important;min-height:42px!important;resize:none}#${PANEL_ID}.is-minimized main{display:none}#${PANEL_ID}.is-maximized{left:5vw!important;top:5vh!important;right:auto!important;width:90vw!important;height:90vh!important;max-width:none!important;max-height:none!important;resize:none}`;
+  style.textContent = `#${PANEL_ID} *{box-sizing:border-box}#${PANEL_ID} header{height:46px;padding:11px 14px;display:flex;justify-content:space-between;align-items:center;background:#faf6f5;cursor:move;border-bottom:1px solid #eee7e3}#${PANEL_ID} header button{border:0;background:transparent;font-size:18px;cursor:pointer}#${PANEL_ID} main{height:calc(100% - 46px);padding:14px 14px 28px;overflow:auto;overscroll-behavior:contain}#${PANEL_ID} .xhs-query{display:grid;gap:6px}#${PANEL_ID} input[type=text]{width:100%;min-height:38px;padding:8px 10px;border:1px solid #d7d1ce;border-radius:9px;background:#fff;color:#222}#${PANEL_ID} input[type=checkbox],#${PANEL_ID} input[type=radio]{appearance:auto!important;-webkit-appearance:auto!important;display:inline-block!important;flex:0 0 16px!important;width:16px!important;height:16px!important;margin:2px 0!important;padding:0!important;opacity:1!important;visibility:visible!important;accent-color:#d8473e;clip:auto!important;position:static!important}#${PANEL_ID} button{padding:7px 11px;border:1px solid #d8473e;border-radius:9px;background:#fff;color:#c93e36;cursor:pointer;white-space:nowrap}#${PANEL_ID} button:hover{background:#fff5f4}#${PANEL_ID} button:disabled{opacity:.48;cursor:not-allowed}#${PANEL_ID} .xhs-toolbar{display:flex;align-items:center;gap:8px;margin:10px 0;flex-wrap:wrap}#${PANEL_ID} .xhs-toolbar-spacer{flex:1}#${PANEL_ID} .xhs-toolbar button:not(.xhs-search){padding:4px 9px;font-size:12px}#${PANEL_ID} .xhs-badge{padding:3px 8px;border-radius:999px;background:#f5f2f0;color:#625b57;font-size:12px}#${PANEL_ID} .xhs-scroll{overflow:auto;scrollbar-width:thin}#${PANEL_ID} .xhs-matches{max-height:170px;border-top:1px solid #eee}#${PANEL_ID} fieldset{display:grid;gap:9px;margin:14px 0;padding:11px 13px 13px;border:1px solid #ded9d6;border-radius:12px;min-width:0;background:#fff}#${PANEL_ID} fieldset legend{padding:0 5px;font-weight:650;color:#4d4642}#${PANEL_ID} fieldset label{display:flex;align-items:flex-start;gap:8px}#${PANEL_ID} .xhs-switch-row span{display:grid;gap:2px}#${PANEL_ID} .xhs-switch-row small{color:#817873;font-size:11px}#${PANEL_ID} .xhs-ocr-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px 10px;padding:9px 0 0 24px;border-top:1px dashed #ded8d4}#${PANEL_ID} .xhs-ocr-options input[type=text]{grid-column:1/-1;min-height:34px}#${PANEL_ID} .xhs-settings-button{width:100%;margin-top:2px}#${PANEL_ID} .xhs-primary{width:100%;min-height:40px;margin:3px 0 12px;background:#d8473e;color:#fff;font-weight:650}#${PANEL_ID} .xhs-primary:hover{background:#c83e36}#${PANEL_ID} .xhs-progress-head{display:flex;justify-content:space-between;margin-bottom:6px;color:#706864;font-size:12px}#${PANEL_ID} .xhs-progress{height:10px;margin:0 0 12px;border:1px dashed #d8473e;border-radius:999px;background:transparent;overflow:hidden}#${PANEL_ID} .xhs-progress i{display:block;height:100%;width:0;background:repeating-linear-gradient(135deg,#d8473e 0 7px,#ef9a94 7px 12px);transition:width .2s}#${PANEL_ID} [data-role=summary]{margin:0 0 10px;line-height:1.6}#${PANEL_ID} .xhs-queue{max-height:190px;padding-bottom:12px}#${PANEL_ID}.is-minimized{width:260px!important;height:46px!important;min-height:46px!important;resize:none}#${PANEL_ID}.is-minimized main{display:none}#${PANEL_ID}.is-maximized{left:4vw!important;top:4vh!important;right:auto!important;width:92vw!important;height:92vh!important;max-width:none!important;max-height:none!important;resize:none;font-size:16px!important}#${PANEL_ID}.is-maximized header{height:58px;padding:15px 20px;font-size:19px}#${PANEL_ID}.is-maximized main{height:calc(100% - 58px);display:grid;grid-template-columns:minmax(0,1.65fr) minmax(360px,1fr);gap:24px;padding:22px 26px}#${PANEL_ID}.is-maximized .xhs-column{min-width:0}#${PANEL_ID}.is-maximized .xhs-matches{max-height:calc(92vh - 200px);font-size:16px}#${PANEL_ID}.is-maximized .xhs-matches label{padding:10px 4px!important}#${PANEL_ID}.is-maximized .xhs-queue{max-height:calc(92vh - 520px)}#${PANEL_ID}.is-maximized button{font-size:14px}`;
   document.documentElement.append(style, panel);
   const header = panel.querySelector<HTMLElement>("header")!;
   makeDraggable(panel, header);
@@ -298,6 +313,19 @@ function createControlPanel(): void {
     updateSelectedCount();
   };
   panelElement<HTMLElement>("[data-role='matches']").addEventListener("change", updateSelectedCount);
+  const updateOcrControls = () => {
+    const enabled = panelElement<HTMLInputElement>("[data-role='ocr-enabled']").checked;
+    const custom = panelElement<HTMLInputElement>('input[name="xhs-auto-ocr-mode"]:checked').value === "custom";
+    for (const input of panel.querySelectorAll<HTMLInputElement>('[data-role="ocr-options"] input')) {
+      input.disabled = !enabled || (input.dataset.role === "ocr-range" && !custom);
+    }
+    panelElement<HTMLElement>("[data-role='ocr-options']").style.opacity = enabled ? "1" : ".5";
+  };
+  panelElement<HTMLInputElement>("[data-role='ocr-enabled']").addEventListener("change", updateOcrControls);
+  for (const input of panel.querySelectorAll<HTMLInputElement>('input[name="xhs-auto-ocr-mode"]')) {
+    input.addEventListener("change", updateOcrControls);
+  }
+  updateOcrControls();
   panelElement<HTMLButtonElement>("[data-action='obsidian-settings']").onclick = async () => {
     try {
       const response = await chrome.runtime.sendMessage({ target: "background", type: "OPEN_OPTIONS_PAGE" }) as { error?: string };

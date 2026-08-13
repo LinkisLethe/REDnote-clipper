@@ -141,6 +141,9 @@ export type BackgroundRequest =
       items: AutoClipCandidate[];
       output: AutoClipOutput;
       duplicatePolicy: "skip" | "rerun";
+      ocrEnabled: boolean;
+      ocrMode: "all" | "skip-cover" | "custom";
+      ocrRange: string;
     }
   | { target: "background"; type: "OPEN_OPTIONS_PAGE" }
   | { target: "background"; type: "GET_AUTO_CLIP_STATE" }

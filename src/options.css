@@ -54,6 +54,20 @@ h1 {
   font-size: 17px;
 }
 
+.lab-copy-note {
+  margin: 12px 0 0;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: #fff4e8;
+  color: #624832;
+  line-height: 1.65;
+}
+
+.field input[readonly] {
+  background: #f4f1ed;
+  color: #625b55;
+}
+
 .guide-card ol {
   margin: 13px 0 0;
   padding-left: 22px;

@@ -54,7 +54,7 @@ function showStatus(text: string, kind: "working" | "success" | "error"): void {
 
 function readDraft() {
   return normalizeObsidianSettings({
-    noteFolder: noteFolderInput.value,
+    noteFolder: "Clippings/XHS",
     apiBaseUrl: apiBaseUrlInput.value,
     apiKey: apiKeyInput.value
   });
@@ -66,7 +66,7 @@ async function loadSettings(): Promise<void> {
     chrome.storage.local.get(OBSIDIAN_API_KEY_KEY)
   ]);
   const stored = synced[OBSIDIAN_SETTINGS_KEY] as Partial<ObsidianSettings> | undefined;
-  noteFolderInput.value = stored?.noteFolder || DEFAULT_OBSIDIAN_SETTINGS.noteFolder;
+  noteFolderInput.value = "Clippings/XHS";
   apiBaseUrlInput.value = stored?.apiBaseUrl || DEFAULT_OBSIDIAN_SETTINGS.apiBaseUrl;
   apiKeyInput.value = String(local[OBSIDIAN_API_KEY_KEY] || "");
 }

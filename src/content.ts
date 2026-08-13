@@ -228,6 +228,12 @@ function renderMatches(query: string): void {
     return label;
   }));
   panelElement<HTMLElement>("[data-role='match-count']").textContent = `匹配 ${matches.length} 篇`;
+  updateSelectedCount();
+}
+
+function updateSelectedCount(): void {
+  const boxes = [...document.querySelectorAll<HTMLInputElement>(`#${PANEL_ID} [data-role='matches'] input[type='checkbox']`)];
+  panelElement<HTMLElement>("[data-role='selected-count']").textContent = `已选 ${boxes.filter((box) => box.checked).length} 篇`;
 }
 
 function makeDraggable(panel: HTMLElement, handle: HTMLElement): void {
@@ -259,7 +265,8 @@ function createControlPanel(): void {
     <header data-role="header"><strong>XHS Clipper Automation Lab</strong><span><button data-action="resize" title="放大或还原">□</button><button data-action="minimize" title="最小化">－</button></span></header>
     <main data-role="body">
       <label>关键词<input data-role="query" type="text" placeholder="例如 新二 cs"></label>
-      <div class="xhs-actions"><button data-action="search">查找相关文章</button><span data-role="match-count">匹配 0 篇</span></div>
+      <div class="xhs-actions"><button data-action="search">查找相关文章</button><span data-role="match-count">匹配 0 篇</span><span data-role="selected-count">已选 0 篇</span></div>
+      <div class="xhs-selection-actions"><button type="button" data-action="select-all">全选</button><button type="button" data-action="select-none">取消全选</button></div>
       <div data-role="matches" class="xhs-scroll"></div>
       <fieldset><legend>输出方式</legend><label><input type="radio" name="xhs-auto-output" value="download" checked> Chrome 默认下载路径</label><label><input type="radio" name="xhs-auto-output" value="obsidian"> Obsidian · Clippings/XHS</label><button type="button" data-action="obsidian-settings">配置实验版 Obsidian</button></fieldset>
       <button data-action="start" class="xhs-primary">剪藏已勾选文章</button>
@@ -275,14 +282,30 @@ function createControlPanel(): void {
     boxShadow: "0 10px 36px rgba(0,0,0,.20)", color: "#222", font: "13px/1.45 system-ui,sans-serif"
   });
   const style = document.createElement("style");
-  style.textContent = `#${PANEL_ID} *{box-sizing:border-box}#${PANEL_ID} header{height:42px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;background:#faf6f5;cursor:move}#${PANEL_ID} header button{border:0;background:transparent;font-size:18px;cursor:pointer}#${PANEL_ID} main{height:calc(100% - 42px);padding:12px;overflow:auto}#${PANEL_ID} main>label{display:grid;gap:4px}#${PANEL_ID} input[type=text]{width:100%;padding:8px;border:1px solid #ccc;border-radius:8px}#${PANEL_ID} .xhs-actions{display:flex;align-items:center;gap:10px;margin:8px 0}#${PANEL_ID} button{padding:7px 10px;border:1px solid #d8473e;border-radius:8px;background:white;color:#d8473e;cursor:pointer}#${PANEL_ID} button:disabled{opacity:.5;cursor:not-allowed}#${PANEL_ID} .xhs-primary{width:100%;margin:10px 0;background:#d8473e;color:white}#${PANEL_ID} fieldset{display:grid;gap:5px;margin:10px 0;border:1px solid #ddd;border-radius:8px}#${PANEL_ID} .xhs-scroll{max-height:145px;overflow:auto}#${PANEL_ID} .xhs-queue{max-height:160px}#${PANEL_ID} .xhs-progress{height:8px;background:#eee;border-radius:999px;overflow:hidden}#${PANEL_ID} .xhs-progress i{display:block;height:100%;width:0;background:#d8473e;transition:width .2s}#${PANEL_ID}.is-minimized{width:250px!important;height:42px!important;min-height:42px!important;resize:none}#${PANEL_ID}.is-minimized main{display:none}#${PANEL_ID}.is-maximized{left:5vw!important;top:5vh!important;right:auto!important;width:90vw!important;height:90vh!important;max-width:none!important;max-height:none!important;resize:none}`;
+  style.textContent = `#${PANEL_ID} *{box-sizing:border-box}#${PANEL_ID} header{height:42px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;background:#faf6f5;cursor:move}#${PANEL_ID} header button{border:0;background:transparent;font-size:18px;cursor:pointer}#${PANEL_ID} main{height:calc(100% - 42px);padding:12px 12px 24px;overflow:auto;overscroll-behavior:contain}#${PANEL_ID} main>label{display:grid;gap:4px}#${PANEL_ID} input[type=text]{width:100%;padding:8px;border:1px solid #ccc;border-radius:8px}#${PANEL_ID} input[type=checkbox],#${PANEL_ID} input[type=radio]{appearance:auto!important;-webkit-appearance:auto!important;display:inline-block!important;flex:0 0 16px!important;width:16px!important;height:16px!important;margin:2px 0!important;padding:0!important;opacity:1!important;visibility:visible!important;accent-color:#d8473e;clip:auto!important;position:static!important}#${PANEL_ID} .xhs-actions,#${PANEL_ID} .xhs-selection-actions{display:flex;align-items:center;gap:10px;margin:8px 0;flex-wrap:wrap}#${PANEL_ID} .xhs-selection-actions{margin-top:0}#${PANEL_ID} .xhs-selection-actions button{padding:3px 8px;font-size:12px}#${PANEL_ID} button{padding:7px 10px;border:1px solid #d8473e;border-radius:8px;background:white;color:#d8473e;cursor:pointer}#${PANEL_ID} button:disabled{opacity:.5;cursor:not-allowed}#${PANEL_ID} .xhs-primary{width:100%;margin:10px 0;background:#d8473e;color:white}#${PANEL_ID} fieldset{display:grid;gap:8px;margin:12px 0;padding:10px 12px 12px;border:1px solid #ddd;border-radius:8px;min-width:0}#${PANEL_ID} fieldset label{display:flex;align-items:flex-start;gap:8px}#${PANEL_ID} .xhs-scroll{max-height:145px;overflow:auto}#${PANEL_ID} .xhs-queue{max-height:190px;padding-bottom:10px}#${PANEL_ID} .xhs-progress{height:8px;margin:2px 0 12px;background:#eee;border-radius:999px;overflow:hidden}#${PANEL_ID} .xhs-progress i{display:block;height:100%;width:0;background:#d8473e;transition:width .2s}#${PANEL_ID} [data-role=summary]{margin:0 0 10px;line-height:1.6}#${PANEL_ID}.is-minimized{width:250px!important;height:42px!important;min-height:42px!important;resize:none}#${PANEL_ID}.is-minimized main{display:none}#${PANEL_ID}.is-maximized{left:5vw!important;top:5vh!important;right:auto!important;width:90vw!important;height:90vh!important;max-width:none!important;max-height:none!important;resize:none}`;
   document.documentElement.append(style, panel);
   const header = panel.querySelector<HTMLElement>("header")!;
   makeDraggable(panel, header);
   panelElement<HTMLButtonElement>("[data-action='minimize']").onclick = () => panel.classList.toggle("is-minimized");
   panelElement<HTMLButtonElement>("[data-action='resize']").onclick = () => panel.classList.toggle("is-maximized");
   panelElement<HTMLButtonElement>("[data-action='search']").onclick = () => renderMatches(panelElement<HTMLInputElement>("[data-role='query']").value);
-  panelElement<HTMLButtonElement>("[data-action='obsidian-settings']").onclick = () => void chrome.runtime.openOptionsPage();
+  panelElement<HTMLButtonElement>("[data-action='select-all']").onclick = () => {
+    for (const input of panel.querySelectorAll<HTMLInputElement>("[data-role='matches'] input[type='checkbox']")) input.checked = true;
+    updateSelectedCount();
+  };
+  panelElement<HTMLButtonElement>("[data-action='select-none']").onclick = () => {
+    for (const input of panel.querySelectorAll<HTMLInputElement>("[data-role='matches'] input[type='checkbox']")) input.checked = false;
+    updateSelectedCount();
+  };
+  panelElement<HTMLElement>("[data-role='matches']").addEventListener("change", updateSelectedCount);
+  panelElement<HTMLButtonElement>("[data-action='obsidian-settings']").onclick = async () => {
+    try {
+      const response = await chrome.runtime.sendMessage({ target: "background", type: "OPEN_OPTIONS_PAGE" }) as { error?: string };
+      if (response?.error) throw new Error(response.error);
+    } catch (error) {
+      showToast(`无法打开设置页：${displayError(error instanceof Error ? error.message : String(error))}`, "error");
+    }
+  };
   panelElement<HTMLInputElement>("[data-role='query']").addEventListener("keydown", (event) => {
     if (event.key === "Enter") renderMatches((event.currentTarget as HTMLInputElement).value);
   });
@@ -295,7 +318,7 @@ function createControlPanel(): void {
     try {
       await startBatch(items, selectedOutput());
     } catch (error) {
-      showToast(`启动失败：${error instanceof Error ? error.message : String(error)}`, "error");
+      showToast(`启动失败：${displayError(error instanceof Error ? error.message : String(error))}`, "error");
     }
   };
 }

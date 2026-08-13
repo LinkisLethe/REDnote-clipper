@@ -17,6 +17,7 @@
 
       <section class="guide-card">
         <h2 data-i18n="obsidianGuideTitle">首次配置</h2>
+        <p class="lab-copy-note"><strong>实验版需要单独保存参数。</strong>请打开 Obsidian → 设置 → 第三方插件 → Local REST API，复制 HTTP 地址和 API Key。它们与原 XHS Clipper 使用的是同一组值，但 Chrome 不允许实验版直接读取另一个扩展的 Key。</p>
         <ol>
           <li>
             <span data-i18n="obsidianGuideStep1">在 Obsidian 安装并启用 Local REST API with MCP 插件。</span>
@@ -36,8 +37,9 @@
             autocomplete="off"
             data-i18n-placeholder="noteFolderPlaceholder"
             placeholder="Clippings/Xiaohongshu"
+            readonly
           />
-          <span data-i18n="noteFolderHint">例如 Clippings/Xiaohongshu，不需要填仓库名。</span>
+          <span>自动剪藏实验固定写入 Clippings/XHS。</span>
         </label>
 
         <label class="field" for="apiBaseUrl">

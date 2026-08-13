@@ -142,6 +142,7 @@ export type BackgroundRequest =
       output: AutoClipOutput;
       duplicatePolicy: "skip" | "rerun";
     }
+  | { target: "background"; type: "OPEN_OPTIONS_PAGE" }
   | { target: "background"; type: "GET_AUTO_CLIP_STATE" }
   | {
       target: "background";

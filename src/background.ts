@@ -387,6 +387,7 @@ async function startAutoClipBatch(
   if (unique.length === 0 || unique.some((item) => !isXiaohongshuNoteUrl(item.url))) {
     throw new Error("AUTO_CLIP_SELECTION_EMPTY");
   }
+  if (request.output === "obsidian") await getStoredObsidianSettings();
   autoClipStarting = true;
   try {
     const task: AutoClipTask = {
@@ -862,6 +863,9 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
 
   let operation: Promise<unknown>;
   switch (request.type) {
+    case "OPEN_OPTIONS_PAGE":
+      operation = chrome.runtime.openOptionsPage().then(() => ({ ok: true }));
+      break;
     case "AUTO_CLIP_BATCH":
       operation = startAutoClipBatch(
         request as Extract<BackgroundRequest, { type: "AUTO_CLIP_BATCH" }>,

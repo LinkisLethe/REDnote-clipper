@@ -1,19 +1,27 @@
 {
   "manifest_version": 3,
-  "name": "__MSG_extensionName__",
-  "description": "__MSG_extensionDescription__",
+  "name": "XHS Clipper Automation Lab",
+  "description": "Local experiment for page-triggered Xiaohongshu clipping.",
   "version": "0.4.1",
+  "version_name": "0.4.1-local-automation-lab",
   "minimum_chrome_version": "116",
   "default_locale": "en",
   "action": {
     "default_popup": "popup.html",
-    "default_title": "__MSG_extensionName__"
+    "default_title": "XHS Clipper Automation Lab"
   },
   "options_page": "options.html",
   "background": {
     "service_worker": "assets/background.js",
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": ["https://www.xiaohongshu.com/user/profile/*"],
+      "js": ["assets/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "permissions": [
     "activeTab",
     "scripting",

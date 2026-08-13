@@ -63,7 +63,9 @@ export function extractXiaohongshuPage(): ExtractionResponse {
     return text;
   };
   const noteIdFromUrl = (): string => {
-    const match = location.pathname.match(/\/(?:explore|discovery\/item)\/([a-zA-Z0-9]+)/);
+    const match = location.pathname.match(
+      /\/(?:explore|discovery\/item|user\/profile\/[^/]+)\/([a-zA-Z0-9]+)/
+    );
     return match?.[1] || new URL(location.href).searchParams.get("note_id") || "";
   };
   const getImageFromItem = (itemValue: unknown): string => {

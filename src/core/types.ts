@@ -89,7 +89,60 @@ export interface OcrJob {
   updatedAt: string;
 }
 
+export type AutoClipOutput = "download" | "obsidian";
+
+export interface AutoClipCandidate {
+  url: string;
+  title: string;
+}
+
+export type AutoClipItemStatus =
+  | "queued"
+  | "opening"
+  | "extracting"
+  | "ocr"
+  | "exporting"
+  | "completed"
+  | "skipped"
+  | "error";
+
+export interface AutoClipQueueItem extends AutoClipCandidate {
+  status: AutoClipItemStatus;
+  noteId?: string;
+  filename?: string;
+  error?: string;
+}
+
+export interface AutoClipHistoryEntry {
+  noteId: string;
+  title: string;
+  url: string;
+  filename: string;
+  output: AutoClipOutput;
+  completedAt: string;
+}
+
+export interface AutoClipPanelState {
+  taskId?: string;
+  running: boolean;
+  output?: AutoClipOutput;
+  currentIndex: number;
+  total: number;
+  progress: number;
+  stage?: OcrStage;
+  queue: AutoClipQueueItem[];
+  history: AutoClipHistoryEntry[];
+}
+
 export type BackgroundRequest =
+  | {
+      target: "background";
+      type: "AUTO_CLIP_BATCH";
+      items: AutoClipCandidate[];
+      output: AutoClipOutput;
+      duplicatePolicy: "skip" | "rerun";
+    }
+  | { target: "background"; type: "GET_AUTO_CLIP_STATE" }
   | {
       target: "background";
       type: "TEST_OBSIDIAN_CONNECTION";
@@ -143,6 +196,12 @@ export type BackgroundRequest =
       stageDurations?: OcrStageDurations;
       error?: string;
     };
+
+export interface AutoClipStatusMessage {
+  target: "content";
+  type: "AUTO_CLIP_STATUS";
+  state: AutoClipPanelState;
+}
 
 export type OffscreenRequest =
   | { target: "offscreen"; type: "PREWARM_OCR" }

@@ -1,4 +1,8 @@
 import type {
+  AutoClipHistoryEntry,
+  AutoClipPanelState,
+  AutoClipQueueItem,
+  AutoClipStatusMessage,
   BackgroundRequest,
   Note,
   OcrJob,
@@ -6,6 +10,14 @@ import type {
   PopupJobProgressPatch,
   PopupJobUpdate
 } from "./core/types";
+import {
+  extractXiaohongshuPage,
+  normalizeExtractedNote,
+  type ExtractionResponse
+} from "./adapters/xiaohongshu";
+import { createMarkdownFilename } from "./core/filename";
+import { applyOcrResults, renderMarkdown } from "./core/markdown";
+import { isXiaohongshuNoteUrl, noteIdFromXiaohongshuUrl } from "./core/automation";
 import {
   OCR_ENABLED_KEY,
   OCR_PIPELINE_VERSION,
@@ -23,12 +35,30 @@ import {
 } from "./core/obsidian";
 
 const OCR_JOB_KEY = "lastOcrJob";
+const AUTO_CLIP_TASK_KEY = "localAutomationTask";
+const AUTO_CLIP_HISTORY_KEY = "localAutomationHistory";
+const AUTO_CLIP_OBSIDIAN_FOLDER = "Clippings/XHS";
 const OFFSCREEN_TIMEOUT_MS = 10_000;
 const OBSIDIAN_TIMEOUT_MS = 7_000;
-const XIAOHONGSHU_NOTE_URL =
-  /^https:\/\/([^.]+\.)?xiaohongshu\.com\/(?:explore|discovery\/item)\//i;
 let creatingOffscreen: Promise<void> | null = null;
 let prewarmingOcr: Promise<void> | null = null;
+let autoClipStarting = false;
+const activeAutoClipTasks = new Set<string>();
+
+interface AutoClipTask {
+  taskId: string;
+  running: boolean;
+  output: "download" | "obsidian";
+  duplicatePolicy: "skip" | "rerun";
+  currentIndex: number;
+  progress: number;
+  queue: AutoClipQueueItem[];
+  originTabId?: number;
+  articleTabId?: number;
+  jobId?: string;
+  note?: Note;
+  startedAt: string;
+}
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -79,7 +109,7 @@ async function ensureOffscreenDocument(): Promise<void> {
 }
 
 async function prewarmOcrForUrl(url: string | undefined): Promise<void> {
-  if (!url || !XIAOHONGSHU_NOTE_URL.test(url)) return;
+  if (!url || !isXiaohongshuNoteUrl(url)) return;
   const settings = await chrome.storage.local.get(OCR_ENABLED_KEY);
   if (!settings[OCR_ENABLED_KEY]) return;
   if (!prewarmingOcr) {
@@ -96,6 +126,333 @@ async function prewarmOcrForUrl(url: string | undefined): Promise<void> {
     });
   }
   await prewarmingOcr;
+}
+
+async function getAutoClipHistory(): Promise<AutoClipHistoryEntry[]> {
+  const stored = await chrome.storage.local.get(AUTO_CLIP_HISTORY_KEY);
+  return (stored[AUTO_CLIP_HISTORY_KEY] as AutoClipHistoryEntry[] | undefined) || [];
+}
+
+async function autoClipPanelState(task?: AutoClipTask): Promise<AutoClipPanelState> {
+  const current = task || (await chrome.storage.local.get(AUTO_CLIP_TASK_KEY))[AUTO_CLIP_TASK_KEY] as AutoClipTask | undefined;
+  const history = await getAutoClipHistory();
+  return {
+    taskId: current?.taskId,
+    running: Boolean(current?.running),
+    output: current?.output,
+    currentIndex: current?.currentIndex || 0,
+    total: current?.queue.length || 0,
+    progress: current?.progress || 0,
+    stage: current?.jobId ? (await getJob())?.stage : undefined,
+    queue: current?.queue || [],
+    history
+  };
+}
+
+async function notifyAutoClip(task: AutoClipTask): Promise<void> {
+  const state = await autoClipPanelState(task);
+  const message: AutoClipStatusMessage = {
+    target: "content",
+    type: "AUTO_CLIP_STATUS",
+    state
+  };
+  if (task.originTabId) {
+    await chrome.tabs.sendMessage(task.originTabId, message).catch(() => undefined);
+  }
+  await chrome.runtime.sendMessage(message).catch(() => undefined);
+}
+
+async function saveAutoClipTask(task: AutoClipTask): Promise<void> {
+  await chrome.storage.local.set({ [AUTO_CLIP_TASK_KEY]: task });
+  await notifyAutoClip(task);
+}
+
+function updateQueueItem(
+  task: AutoClipTask,
+  index: number,
+  patch: Partial<AutoClipQueueItem>
+): AutoClipTask {
+  const queue = task.queue.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item);
+  return { ...task, queue };
+}
+
+function continueAutoClipQueue(taskId: string): void {
+  queueMicrotask(() => void processAutoClipQueue(taskId));
+}
+
+async function waitForTabComplete(tabId: number, timeoutMs = 30_000): Promise<void> {
+  const current = await chrome.tabs.get(tabId);
+  if (current.status === "complete") return;
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      reject(new Error("AUTO_CLIP_PAGE_TIMEOUT"));
+    }, timeoutMs);
+    const listener = (updatedTabId: number, changeInfo: { status?: string }) => {
+      if (updatedTabId !== tabId || changeInfo.status !== "complete") return;
+      clearTimeout(timeout);
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+}
+
+async function extractNoteFromTab(tabId: number): Promise<Note> {
+  let lastError = "AUTO_CLIP_CAPTURE_FAILED";
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const injection = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      func: extractXiaohongshuPage
+    });
+    const response = injection[0]?.result as ExtractionResponse | undefined;
+    if (response?.ok && response.data) return normalizeExtractedNote(response.data);
+    lastError = response?.error || lastError;
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+  }
+  throw new Error(lastError);
+}
+
+function comparableTitle(value: string): string {
+  return value.normalize("NFKC").replace(/[\s·•_—–-]+/g, "").toLowerCase();
+}
+
+async function writeAutoClipToObsidian(
+  filename: string,
+  markdown: string,
+  overwrite: boolean
+): Promise<void> {
+  const settings = await getStoredObsidianSettings();
+  const path = createObsidianNotePath(AUTO_CLIP_OBSIDIAN_FOLDER, filename);
+  const endpoint = `${settings.apiBaseUrl}/vault/${encodeObsidianVaultPath(path)}`;
+  const headers = { Authorization: `Bearer ${settings.apiKey}` };
+  const existing = await fetchLocalObsidian(endpoint, {
+    method: "GET",
+    headers: { ...headers, Accept: "text/markdown" }
+  });
+  if (existing.status === 401 || existing.status === 403) throw new Error("OBSIDIAN_UNAUTHORIZED");
+  if (existing.status !== 404 && !existing.ok) throw new Error(`OBSIDIAN_HTTP_ERROR:${existing.status}`);
+  if (existing.ok && !overwrite) throw new Error("OBSIDIAN_NOTE_EXISTS");
+  const written = await fetchLocalObsidian(endpoint, {
+    method: "PUT",
+    headers: { ...headers, "Content-Type": "text/markdown; charset=utf-8" },
+    body: markdown
+  });
+  assertObsidianResponse(written);
+}
+
+async function exportAutoClip(
+  task: AutoClipTask,
+  note: Note,
+  markdown: string,
+  filename: string
+): Promise<void> {
+  if (task.output === "obsidian") {
+    await writeAutoClipToObsidian(filename, markdown, task.duplicatePolicy === "rerun");
+    return;
+  }
+  await chrome.downloads.download({
+    url: `data:text/markdown;charset=utf-8,${encodeURIComponent(markdown)}`,
+    filename,
+    conflictAction: "uniquify",
+    saveAs: false
+  });
+}
+
+async function finishAutoClipQueue(task: AutoClipTask): Promise<void> {
+  const finished = { ...task, running: false, progress: 100, articleTabId: undefined, jobId: undefined, note: undefined };
+  await saveAutoClipTask(finished);
+}
+
+async function recoverAutoClipQueue(): Promise<void> {
+  const stored = await chrome.storage.local.get(AUTO_CLIP_TASK_KEY);
+  let task = stored[AUTO_CLIP_TASK_KEY] as AutoClipTask | undefined;
+  if (!task?.running) return;
+  if (activeAutoClipTasks.has(task.taskId)) return;
+
+  if (task.jobId) {
+    const job = await getJob();
+    if (job?.id === task.jobId && ["completed", "error", "canceled"].includes(job.status)) {
+      await finishAutoClip(job);
+      return;
+    }
+    if (job?.id === task.jobId && await hasActiveOcrJob(task.jobId)) return;
+    task = updateQueueItem(task, task.currentIndex, {
+      status: "error",
+      error: "AUTO_CLIP_OCR_INTERRUPTED"
+    });
+    if (task.articleTabId) await chrome.tabs.remove(task.articleTabId).catch(() => undefined);
+    task = { ...task, articleTabId: undefined, jobId: undefined, note: undefined, progress: 0 };
+    await saveAutoClipTask(task);
+  } else {
+    const interruptedIndex = task.queue.findIndex((item) =>
+      ["opening", "extracting", "exporting"].includes(item.status)
+    );
+    if (interruptedIndex >= 0) {
+      if (task.articleTabId) await chrome.tabs.remove(task.articleTabId).catch(() => undefined);
+      task = updateQueueItem(task, interruptedIndex, { status: "queued", error: undefined });
+      task = { ...task, articleTabId: undefined, note: undefined, progress: 0 };
+      await saveAutoClipTask(task);
+    }
+  }
+  void processAutoClipQueue(task.taskId);
+}
+
+async function processAutoClipQueue(taskId: string): Promise<void> {
+  if (activeAutoClipTasks.has(taskId)) return;
+  activeAutoClipTasks.add(taskId);
+  try {
+  const stored = await chrome.storage.local.get(AUTO_CLIP_TASK_KEY);
+  let task = stored[AUTO_CLIP_TASK_KEY] as AutoClipTask | undefined;
+  if (!task || task.taskId !== taskId || !task.running || task.jobId) return;
+  const nextIndex = task.queue.findIndex((item) => item.status === "queued");
+  if (nextIndex < 0) {
+    await finishAutoClipQueue(task);
+    return;
+  }
+  const candidate = task.queue[nextIndex];
+  if (!candidate || !isXiaohongshuNoteUrl(candidate.url)) {
+    task = updateQueueItem(task, nextIndex, { status: "error", error: "AUTO_CLIP_URL_INVALID" });
+    await saveAutoClipTask(task);
+    continueAutoClipQueue(taskId);
+    return;
+  }
+  const history = await getAutoClipHistory();
+  const candidateId = noteIdFromXiaohongshuUrl(candidate.url);
+  if (task.duplicatePolicy === "skip" && history.some((entry) => entry.noteId === candidateId)) {
+    task = updateQueueItem(task, nextIndex, { status: "skipped", noteId: candidateId, error: "AUTO_CLIP_DUPLICATE" });
+    await saveAutoClipTask(task);
+    continueAutoClipQueue(taskId);
+    return;
+  }
+  task = updateQueueItem({ ...task, currentIndex: nextIndex, progress: 2 }, nextIndex, { status: "opening" });
+  await saveAutoClipTask(task);
+  let articleTabId: number | undefined;
+  try {
+    const articleTab = await chrome.tabs.create({ url: candidate.url, active: false });
+    articleTabId = articleTab.id;
+    if (!articleTabId) throw new Error("AUTO_CLIP_TAB_FAILED");
+    task = { ...task, articleTabId, progress: 8 };
+    await saveAutoClipTask(task);
+    await waitForTabComplete(articleTabId);
+    task = updateQueueItem({ ...task, progress: 15 }, nextIndex, { status: "extracting" });
+    await saveAutoClipTask(task);
+    const note = await extractNoteFromTab(articleTabId);
+    if (comparableTitle(note.title) !== comparableTitle(candidate.title)) {
+      throw new Error("AUTO_CLIP_TITLE_MISMATCH");
+    }
+    if (note.images.length === 0) throw new Error("AUTO_CLIP_NO_IMAGES");
+    if (task.duplicatePolicy === "skip" && history.some((entry) => entry.noteId === note.id)) {
+      task = updateQueueItem(task, nextIndex, { status: "skipped", noteId: note.id, error: "AUTO_CLIP_DUPLICATE" });
+      await chrome.tabs.remove(articleTabId).catch(() => undefined);
+      await saveAutoClipTask({ ...task, articleTabId: undefined, progress: 0 });
+      continueAutoClipQueue(taskId);
+      return;
+    }
+    const job = await startOcr(note, note.images.map((_image, index) => index));
+    task = updateQueueItem({ ...task, jobId: job.id, note, progress: job.progress }, nextIndex, {
+      status: "ocr",
+      noteId: note.id
+    });
+    await saveAutoClipTask(task);
+  } catch (error) {
+    if (articleTabId) await chrome.tabs.remove(articleTabId).catch(() => undefined);
+    task = updateQueueItem(task, nextIndex, {
+      status: "error",
+      error: error instanceof Error ? error.message : String(error)
+    });
+    await saveAutoClipTask({ ...task, articleTabId: undefined, jobId: undefined, note: undefined, progress: 0 });
+    continueAutoClipQueue(taskId);
+  }
+  } finally {
+    activeAutoClipTasks.delete(taskId);
+  }
+}
+
+async function startAutoClipBatch(
+  request: Extract<BackgroundRequest, { type: "AUTO_CLIP_BATCH" }>,
+  originTabId?: number
+): Promise<AutoClipPanelState> {
+  if (autoClipStarting) throw new Error("AUTO_CLIP_BUSY");
+  const stored = await chrome.storage.local.get(AUTO_CLIP_TASK_KEY);
+  const existing = stored[AUTO_CLIP_TASK_KEY] as AutoClipTask | undefined;
+  if (existing?.running) {
+    const ageMs = Date.now() - Date.parse(existing.startedAt || "");
+    if (!Number.isFinite(ageMs) || ageMs < 30 * 60_000) throw new Error("AUTO_CLIP_BUSY");
+    if (existing.articleTabId) await chrome.tabs.remove(existing.articleTabId).catch(() => undefined);
+    await chrome.storage.local.remove(AUTO_CLIP_TASK_KEY);
+  }
+  const unique = [...new Map(request.items.map((item) => [item.url, item])).values()];
+  if (unique.length === 0 || unique.some((item) => !isXiaohongshuNoteUrl(item.url))) {
+    throw new Error("AUTO_CLIP_SELECTION_EMPTY");
+  }
+  autoClipStarting = true;
+  try {
+    const task: AutoClipTask = {
+      taskId: crypto.randomUUID(),
+      running: true,
+      output: request.output,
+      duplicatePolicy: request.duplicatePolicy,
+      currentIndex: 0,
+      progress: 0,
+      queue: unique.map((item) => ({ ...item, status: "queued" })),
+      originTabId,
+      startedAt: new Date().toISOString()
+    };
+    await saveAutoClipTask(task);
+    void processAutoClipQueue(task.taskId);
+    return autoClipPanelState(task);
+  } finally {
+    autoClipStarting = false;
+  }
+}
+
+async function updateAutoClipProgress(job: OcrJob): Promise<void> {
+  const stored = await chrome.storage.local.get(AUTO_CLIP_TASK_KEY);
+  const task = stored[AUTO_CLIP_TASK_KEY] as AutoClipTask | undefined;
+  if (!task || task.jobId !== job.id) return;
+  await saveAutoClipTask({ ...task, progress: job.progress });
+}
+
+async function finishAutoClip(job: OcrJob): Promise<void> {
+  const stored = await chrome.storage.local.get(AUTO_CLIP_TASK_KEY);
+  let task = stored[AUTO_CLIP_TASK_KEY] as AutoClipTask | undefined;
+  if (!task || task.jobId !== job.id || !task.note) return;
+  const index = task.currentIndex;
+  const sourceNote = task.note;
+  try {
+    if (job.status !== "completed") throw new Error(job.error || "AUTO_CLIP_OCR_FAILED");
+    task = updateQueueItem({ ...task, progress: 98 }, index, { status: "exporting" });
+    await saveAutoClipTask(task);
+    const note = applyOcrResults(sourceNote, job.results);
+    const markdown = renderMarkdown(note, { language: "zh-CN", includeOcr: true });
+    const filename = createMarkdownFilename(note.title, note.authorName, note.publishedAt);
+    await exportAutoClip(task, note, markdown, filename);
+    const history = await getAutoClipHistory();
+    const entry: AutoClipHistoryEntry = {
+      noteId: note.id,
+      title: note.title,
+      url: note.url,
+      filename,
+      output: task.output,
+      completedAt: new Date().toISOString()
+    };
+    await chrome.storage.local.set({
+      [AUTO_CLIP_HISTORY_KEY]: [entry, ...history.filter((item) => item.noteId !== note.id)].slice(0, 200)
+    });
+    task = updateQueueItem(task, index, { status: "completed", filename, error: undefined });
+  } catch (error) {
+    task = updateQueueItem(task, index, {
+      status: "error",
+      error: error instanceof Error ? error.message : String(error)
+    });
+  } finally {
+    if (task.articleTabId) await chrome.tabs.remove(task.articleTabId).catch(() => undefined);
+    task = { ...task, articleTabId: undefined, jobId: undefined, note: undefined, progress: 0 };
+    await saveAutoClipTask(task);
+    void processAutoClipQueue(task.taskId);
+  }
 }
 
 async function saveJob(job: OcrJob): Promise<void> {
@@ -367,10 +724,12 @@ async function updateStage(
         updatedAt: updated.updatedAt
       }
     });
+    await updateAutoClipProgress(updated);
     return updated;
   }
   await saveJob(updated);
   await notifyPopup(updated);
+  await updateAutoClipProgress(updated);
   return updated;
 }
 
@@ -427,6 +786,7 @@ async function markPaused(jobId: string): Promise<OcrJob | undefined> {
   };
   await saveJob(updated);
   await notifyPopup(updated);
+  await updateAutoClipProgress(updated);
   return updated;
 }
 
@@ -468,6 +828,7 @@ async function updateProgress(
   };
   await saveJob(updated);
   await notifyPopup(updated);
+  await updateAutoClipProgress(updated);
   return updated;
 }
 
@@ -491,15 +852,25 @@ async function finishOcr(
   };
   await saveJob(updated);
   await notifyPopup(updated);
+  await finishAutoClip(updated);
   return updated;
 }
 
-chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   const request = message as Partial<BackgroundRequest>;
   if (request.target !== "background") return false;
 
   let operation: Promise<unknown>;
   switch (request.type) {
+    case "AUTO_CLIP_BATCH":
+      operation = startAutoClipBatch(
+        request as Extract<BackgroundRequest, { type: "AUTO_CLIP_BATCH" }>,
+        sender.tab?.id
+      );
+      break;
+    case "GET_AUTO_CLIP_STATE":
+      operation = recoverAutoClipQueue().then(() => autoClipPanelState());
+      break;
     case "WRITE_OBSIDIAN_NOTE":
       operation = writeObsidianNote(
         request as Extract<BackgroundRequest, { type: "WRITE_OBSIDIAN_NOTE" }>

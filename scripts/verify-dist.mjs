@@ -14,6 +14,7 @@ const requiredFiles = [
   "THIRD_PARTY_NOTICES.md",
   "LICENSES/onnxruntime-MIT.txt",
   "assets/background.js",
+  "assets/content.js",
   "models/PP-OCRv6_tiny_det_onnx_infer.tar",
   "models/PP-OCRv6_tiny_rec_onnx_infer.tar",
   "_locales/zh_CN/messages.json",

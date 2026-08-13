@@ -107,6 +107,10 @@ if (!runtimeAssets.some((name) => name.endsWith(".wasm"))) {
 const popupHtml = await readFile(resolve(dist, "popup.html"), "utf8");
 const optionsHtml = await readFile(resolve(dist, "options.html"), "utf8");
 const offscreenHtml = await readFile(resolve(dist, "offscreen.html"), "utf8");
+const contentScript = await readFile(resolve(dist, "assets/content.js"), "utf8");
+if (/^\s*import\b/m.test(contentScript)) {
+  throw new Error("Chrome content script must be a self-contained classic script");
+}
 if (/\<script[^>]+src=["']https?:/i.test(`${popupHtml}\n${optionsHtml}\n${offscreenHtml}`)) {
   throw new Error("Extension pages must not load remote scripts");
 }

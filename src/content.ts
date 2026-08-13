@@ -1,10 +1,31 @@
-import { matchesAllKeywords, noteIdFromXiaohongshuUrl } from "./core/automation";
 import type {
   AutoClipCandidate,
   AutoClipPanelState,
   AutoClipOutput,
   AutoClipStatusMessage
 } from "./core/types";
+
+function noteIdFromXiaohongshuUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    if (!/(^|\.)xiaohongshu\.com$/i.test(url.hostname)) return "";
+    return url.pathname.match(
+      /\/(?:explore|discovery\/item|user\/profile\/[^/]+)\/([a-zA-Z0-9]+)/
+    )?.[1] || url.searchParams.get("note_id") || "";
+  } catch {
+    return "";
+  }
+}
+
+function normalizeSearchText(value: string): string {
+  return value.normalize("NFKC").toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
+}
+
+function matchesAllKeywords(title: string, query: string): boolean {
+  const normalizedTitle = normalizeSearchText(title);
+  const terms = query.trim().split(/\s+/).map(normalizeSearchText).filter(Boolean);
+  return terms.length > 0 && terms.every((term) => normalizedTitle.includes(term));
+}
 
 const BUTTON_MARKER = "data-xhs-clipper-auto-button";
 const PANEL_ID = "xhs-clipper-auto-panel";

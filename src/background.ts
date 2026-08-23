@@ -39,6 +39,7 @@ const OCR_JOB_KEY = "lastOcrJob";
 const AUTO_CLIP_TASK_KEY = "localAutomationTask";
 const AUTO_CLIP_HISTORY_KEY = "localAutomationHistory";
 const AUTO_CLIP_OBSIDIAN_FOLDER = "Clippings/XHS";
+const AUTO_CLIP_BATCH_LIMIT = 20;
 const OFFSCREEN_TIMEOUT_MS = 10_000;
 const OBSIDIAN_TIMEOUT_MS = 7_000;
 let creatingOffscreen: Promise<void> | null = null;
@@ -227,10 +228,6 @@ async function extractNoteFromTab(tabId: number): Promise<Note> {
   throw new Error(lastError);
 }
 
-function comparableTitle(value: string): string {
-  return value.normalize("NFKC").replace(/[\s·•_—–-]+/g, "").toLowerCase();
-}
-
 async function writeAutoClipToObsidian(
   filename: string,
   markdown: string,
@@ -375,7 +372,7 @@ async function processAutoClipQueue(taskId: string): Promise<void> {
     task = updateQueueItem({ ...task, progress: 15 }, nextIndex, { status: "extracting" });
     await saveAutoClipTask(task);
     const note = await extractNoteFromTab(articleTabId);
-    if (comparableTitle(note.title) !== comparableTitle(candidate.title)) {
+    if (note.id !== candidateId) {
       throw new Error("AUTO_CLIP_TITLE_MISMATCH");
     }
     if (note.images.length === 0) throw new Error("AUTO_CLIP_NO_IMAGES");
@@ -435,7 +432,8 @@ async function startAutoClipBatch(
     if (existing.articleTabId) await chrome.tabs.remove(existing.articleTabId).catch(() => undefined);
     await chrome.storage.local.remove(AUTO_CLIP_TASK_KEY);
   }
-  const unique = [...new Map(request.items.map((item) => [item.url, item])).values()];
+  if (request.items.length > AUTO_CLIP_BATCH_LIMIT) throw new Error("AUTO_CLIP_BATCH_LIMIT");
+  const unique = [...new Map(request.items.map((item) => [noteIdFromXiaohongshuUrl(item.url), item])).values()];
   if (unique.length === 0 || unique.some((item) => !isXiaohongshuNoteUrl(item.url))) {
     throw new Error("AUTO_CLIP_SELECTION_EMPTY");
   }

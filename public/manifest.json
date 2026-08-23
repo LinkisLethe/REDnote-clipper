@@ -17,7 +17,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.xiaohongshu.com/user/profile/*"],
+      "matches": ["https://www.xiaohongshu.com/*"],
       "js": ["assets/content.js"],
       "run_at": "document_idle"
     }

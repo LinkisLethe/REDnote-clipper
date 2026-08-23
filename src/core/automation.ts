@@ -13,7 +13,7 @@ export function noteIdFromXiaohongshuUrl(value: string): string {
     const url = new URL(value);
     if (!XHS_HOST.test(url.hostname)) return "";
     const match = url.pathname.match(
-      /\/(?:explore|discovery\/item|user\/profile\/[^/]+)\/([a-zA-Z0-9]+)/
+      /\/(?:explore|search_result|discovery\/item|user\/profile\/[^/]+)\/([a-zA-Z0-9]+)/
     );
     return match?.[1] || url.searchParams.get("note_id") || "";
   } catch {

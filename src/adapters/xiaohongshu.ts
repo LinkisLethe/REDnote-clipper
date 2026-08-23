@@ -64,7 +64,7 @@ export function extractXiaohongshuPage(): ExtractionResponse {
   };
   const noteIdFromUrl = (): string => {
     const match = location.pathname.match(
-      /\/(?:explore|discovery\/item|user\/profile\/[^/]+)\/([a-zA-Z0-9]+)/
+      /\/(?:explore|search_result|discovery\/item|user\/profile\/[^/]+)\/([a-zA-Z0-9]+)/
     );
     return match?.[1] || new URL(location.href).searchParams.get("note_id") || "";
   };

@@ -50,6 +50,11 @@ if (manifest.background?.service_worker !== "assets/background.js") {
 if (manifest.options_page !== "options.html") {
   throw new Error("Obsidian settings page is missing from the manifest");
 }
+if (!manifest.content_scripts?.some((entry) =>
+  entry.matches?.includes("https://www.xiaohongshu.com/*") && entry.js?.includes("assets/content.js")
+)) {
+  throw new Error("Automation content script must cover Xiaohongshu home, search, and profile pages");
+}
 if (!manifest.permissions?.includes("offscreen") || !manifest.permissions?.includes("downloads")) {
   throw new Error("Required Chrome permissions are missing");
 }

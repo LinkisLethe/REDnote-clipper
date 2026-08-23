@@ -17,6 +17,7 @@ describe("Xiaohongshu automation URLs", () => {
 
   it("keeps supporting explore and discovery links", () => {
     expect(noteIdFromXiaohongshuUrl("https://www.xiaohongshu.com/explore/abc123")).toBe("abc123");
+    expect(noteIdFromXiaohongshuUrl("https://www.xiaohongshu.com/search_result/search456")).toBe("search456");
     expect(noteIdFromXiaohongshuUrl("https://www.xiaohongshu.com/discovery/item/xyz789")).toBe("xyz789");
   });
 

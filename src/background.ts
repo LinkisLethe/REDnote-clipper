@@ -1,5 +1,6 @@
 import type {
   AutoClipHistoryEntry,
+  AutoClipDuplicatePolicy,
   AutoClipPanelState,
   AutoClipQueueItem,
   AutoClipStatusMessage,
@@ -15,8 +16,8 @@ import {
   normalizeExtractedNote,
   type ExtractionResponse
 } from "./adapters/xiaohongshu";
-import { createMarkdownFilename } from "./core/filename";
-import { applyOcrResults, renderMarkdown } from "./core/markdown";
+import { createMarkdownFilename, createVersionedMarkdownFilename } from "./core/filename";
+import { applyOcrResults, readMarkdownNoteId, renderMarkdown } from "./core/markdown";
 import { isXiaohongshuNoteUrl, noteIdFromXiaohongshuUrl } from "./core/automation";
 import { resolveOcrImageIndexes, type OcrSelectionMode } from "./core/ocr-selection";
 import {
@@ -51,7 +52,7 @@ interface AutoClipTask {
   taskId: string;
   running: boolean;
   output: "download" | "obsidian";
-  duplicatePolicy: "skip" | "rerun";
+  duplicatePolicy: AutoClipDuplicatePolicy;
   ocrEnabled: boolean;
   ocrMode: OcrSelectionMode;
   ocrRange: string;
@@ -231,25 +232,55 @@ async function extractNoteFromTab(tabId: number): Promise<Note> {
 async function writeAutoClipToObsidian(
   filename: string,
   markdown: string,
-  overwrite: boolean
-): Promise<void> {
+  noteId: string,
+  duplicatePolicy: AutoClipDuplicatePolicy
+): Promise<{ filename: string; skipped: boolean }> {
   const settings = await getStoredObsidianSettings();
-  const path = createObsidianNotePath(AUTO_CLIP_OBSIDIAN_FOLDER, filename);
-  const endpoint = `${settings.apiBaseUrl}/vault/${encodeObsidianVaultPath(path)}`;
   const headers = { Authorization: `Bearer ${settings.apiKey}` };
-  const existing = await fetchLocalObsidian(endpoint, {
-    method: "GET",
-    headers: { ...headers, Accept: "text/markdown" }
-  });
-  if (existing.status === 401 || existing.status === 403) throw new Error("OBSIDIAN_UNAUTHORIZED");
-  if (existing.status !== 404 && !existing.ok) throw new Error(`OBSIDIAN_HTTP_ERROR:${existing.status}`);
-  if (existing.ok && !overwrite) throw new Error("OBSIDIAN_NOTE_EXISTS");
+  const endpointFor = (targetFilename: string) => {
+    const path = createObsidianNotePath(AUTO_CLIP_OBSIDIAN_FOLDER, targetFilename);
+    return `${settings.apiBaseUrl}/vault/${encodeObsidianVaultPath(path)}`;
+  };
+  const findExisting = async (targetFilename: string) => {
+    const response = await fetchLocalObsidian(endpointFor(targetFilename), {
+      method: "GET",
+      headers: { ...headers, Accept: "text/markdown" }
+    });
+    if (response.status === 401 || response.status === 403) throw new Error("OBSIDIAN_UNAUTHORIZED");
+    if (response.status !== 404 && !response.ok) throw new Error(`OBSIDIAN_HTTP_ERROR:${response.status}`);
+    return response;
+  };
+
+  const existing = await findExisting(filename);
+  const existingNoteId = existing.ok ? readMarkdownNoteId(await existing.text()) : undefined;
+  if (existing.ok && duplicatePolicy === "skip" && existingNoteId === noteId) {
+    return { filename, skipped: true };
+  }
+  if (existing.ok && duplicatePolicy === "overwrite" && existingNoteId !== noteId) {
+    throw new Error("OBSIDIAN_NOTE_ID_MISMATCH");
+  }
+
+  let targetFilename = filename;
+  if (existing.ok && (duplicatePolicy === "new-version" || existingNoteId !== noteId)) {
+    const now = new Date();
+    for (let collisionIndex = 1; collisionIndex <= 100; collisionIndex += 1) {
+      const candidate = createVersionedMarkdownFilename(filename, now, collisionIndex);
+      if ((await findExisting(candidate)).status === 404) {
+        targetFilename = candidate;
+        break;
+      }
+    }
+    if (targetFilename === filename) throw new Error("OBSIDIAN_VERSION_CONFLICT");
+  }
+
+  const endpoint = endpointFor(targetFilename);
   const written = await fetchLocalObsidian(endpoint, {
     method: "PUT",
     headers: { ...headers, "Content-Type": "text/markdown; charset=utf-8" },
     body: markdown
   });
   assertObsidianResponse(written);
+  return { filename: targetFilename, skipped: false };
 }
 
 async function exportAutoClip(
@@ -257,10 +288,9 @@ async function exportAutoClip(
   note: Note,
   markdown: string,
   filename: string
-): Promise<void> {
+): Promise<{ filename: string; skipped: boolean }> {
   if (task.output === "obsidian") {
-    await writeAutoClipToObsidian(filename, markdown, task.duplicatePolicy === "rerun");
-    return;
+    return writeAutoClipToObsidian(filename, markdown, note.id, task.duplicatePolicy);
   }
   await chrome.downloads.download({
     url: `data:text/markdown;charset=utf-8,${encodeURIComponent(markdown)}`,
@@ -268,6 +298,7 @@ async function exportAutoClip(
     conflictAction: "uniquify",
     saveAs: false
   });
+  return { filename, skipped: false };
 }
 
 async function recordAutoClipSuccess(
@@ -277,20 +308,34 @@ async function recordAutoClipSuccess(
   index: number
 ): Promise<AutoClipTask> {
   const filename = createMarkdownFilename(note.title, note.authorName, note.publishedAt);
-  await exportAutoClip(task, note, markdown, filename);
+  const exported = await exportAutoClip(task, note, markdown, filename);
+  if (exported.skipped) {
+    return updateQueueItem(task, index, {
+      status: "skipped",
+      filename: exported.filename,
+      error: "AUTO_CLIP_DUPLICATE"
+    });
+  }
   const history = await getAutoClipHistory();
   const entry: AutoClipHistoryEntry = {
     noteId: note.id,
     title: note.title,
     url: note.url,
-    filename,
+    filename: exported.filename,
     output: task.output,
     completedAt: new Date().toISOString()
   };
   await chrome.storage.local.set({
-    [AUTO_CLIP_HISTORY_KEY]: [entry, ...history.filter((item) => item.noteId !== note.id)].slice(0, 200)
+    [AUTO_CLIP_HISTORY_KEY]: [
+      entry,
+      ...history.filter((item) => item.noteId !== note.id || item.output !== task.output)
+    ].slice(0, 200)
   });
-  return updateQueueItem(task, index, { status: "completed", filename, error: undefined });
+  return updateQueueItem(task, index, {
+    status: "completed",
+    filename: exported.filename,
+    error: undefined
+  });
 }
 
 async function finishAutoClipQueue(task: AutoClipTask): Promise<void> {
@@ -351,14 +396,7 @@ async function processAutoClipQueue(taskId: string): Promise<void> {
     continueAutoClipQueue(taskId);
     return;
   }
-  const history = await getAutoClipHistory();
   const candidateId = noteIdFromXiaohongshuUrl(candidate.url);
-  if (task.duplicatePolicy === "skip" && history.some((entry) => entry.noteId === candidateId)) {
-    task = updateQueueItem(task, nextIndex, { status: "skipped", noteId: candidateId, error: "AUTO_CLIP_DUPLICATE" });
-    await saveAutoClipTask(task);
-    continueAutoClipQueue(taskId);
-    return;
-  }
   task = updateQueueItem({ ...task, currentIndex: nextIndex, progress: 2 }, nextIndex, { status: "opening" });
   await saveAutoClipTask(task);
   let articleTabId: number | undefined;
@@ -376,13 +414,6 @@ async function processAutoClipQueue(taskId: string): Promise<void> {
       throw new Error("AUTO_CLIP_TITLE_MISMATCH");
     }
     if (note.images.length === 0) throw new Error("AUTO_CLIP_NO_IMAGES");
-    if (task.duplicatePolicy === "skip" && history.some((entry) => entry.noteId === note.id)) {
-      task = updateQueueItem(task, nextIndex, { status: "skipped", noteId: note.id, error: "AUTO_CLIP_DUPLICATE" });
-      await chrome.tabs.remove(articleTabId).catch(() => undefined);
-      await saveAutoClipTask({ ...task, articleTabId: undefined, progress: 0 });
-      continueAutoClipQueue(taskId);
-      return;
-    }
     if (!task.ocrEnabled) {
       task = updateQueueItem({ ...task, progress: 92 }, nextIndex, { status: "exporting", noteId: note.id });
       await saveAutoClipTask(task);

@@ -23,3 +23,23 @@ export function createMarkdownFilename(
   ].join("_");
   return `${base.slice(0, 150).replace(TRAILING_DOTS_OR_SPACES, "")}.md`;
 }
+
+export function createVersionedMarkdownFilename(
+  filename: string,
+  createdAt = new Date(),
+  collisionIndex = 1
+): string {
+  const stem = filename.replace(/\.md$/i, "");
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const stamp = [
+    createdAt.getFullYear(),
+    pad(createdAt.getMonth() + 1),
+    pad(createdAt.getDate())
+  ].join("") + "-" + [
+    pad(createdAt.getHours()),
+    pad(createdAt.getMinutes()),
+    pad(createdAt.getSeconds())
+  ].join("");
+  const collisionSuffix = collisionIndex > 1 ? `-${collisionIndex}` : "";
+  return `${stem}_更新-${stamp}${collisionSuffix}.md`;
+}

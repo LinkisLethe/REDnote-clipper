@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createMarkdownFilename } from "../src/core/filename";
-import { renderMarkdown } from "../src/core/markdown";
+import { createMarkdownFilename, createVersionedMarkdownFilename } from "../src/core/filename";
+import { readMarkdownNoteId, renderMarkdown } from "../src/core/markdown";
 import type { Note } from "../src/core/types";
 
 const note: Note = {
@@ -53,11 +53,28 @@ describe("renderMarkdown", () => {
     expect(output).toContain("## Content");
     expect(output).not.toContain("Text from images");
   });
+
+  it("reads note identity safely before an Obsidian overwrite", () => {
+    expect(readMarkdownNoteId(renderMarkdown(note, { language: "zh-CN", includeOcr: false })))
+      .toBe("abc123");
+    expect(readMarkdownNoteId("---\ntitle: \"旧笔记\"\n---\n")).toBeUndefined();
+    expect(readMarkdownNoteId("note_id: not-json")).toBeUndefined();
+  });
 });
 
 describe("createMarkdownFilename", () => {
   it("removes Windows-reserved characters", () => {
     const filename = createMarkdownFilename("A/B:C*D?", "作者<>|", note.publishedAt);
     expect(filename).toBe("A B C D_作者_2026-07-26.md");
+  });
+
+  it("creates readable timestamped filenames for Obsidian versions", () => {
+    const createdAt = new Date(2026, 7, 23, 14, 5, 9);
+    expect(createVersionedMarkdownFilename("文章_作者_2026-08-23.md", createdAt)).toBe(
+      "文章_作者_2026-08-23_更新-20260823-140509.md"
+    );
+    expect(createVersionedMarkdownFilename("文章.md", createdAt, 2)).toBe(
+      "文章_更新-20260823-140509-2.md"
+    );
   });
 });

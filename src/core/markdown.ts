@@ -31,6 +31,17 @@ function cleanMarkdownText(value: string): string {
   return value.replace(/\r\n?/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+export function readMarkdownNoteId(markdown: string): string | undefined {
+  const rawValue = markdown.match(/^note_id:\s*(.+?)\s*$/m)?.[1];
+  if (!rawValue) return undefined;
+  try {
+    const value = JSON.parse(rawValue) as unknown;
+    return typeof value === "string" && value.trim() ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function applyOcrResults(
   note: Note,
   results: Array<OcrImageResult | null>

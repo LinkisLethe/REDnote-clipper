@@ -91,6 +91,8 @@ export interface OcrJob {
 
 export type AutoClipOutput = "download" | "obsidian";
 
+export type AutoClipDuplicatePolicy = "skip" | "new-version" | "overwrite";
+
 export interface AutoClipCandidate {
   url: string;
   title: string;
@@ -140,7 +142,7 @@ export type BackgroundRequest =
       type: "AUTO_CLIP_BATCH";
       items: AutoClipCandidate[];
       output: AutoClipOutput;
-      duplicatePolicy: "skip" | "rerun";
+      duplicatePolicy: AutoClipDuplicatePolicy;
       ocrEnabled: boolean;
       ocrMode: "all" | "skip-cover" | "custom";
       ocrRange: string;

@@ -20,9 +20,9 @@ XHS Clipper is a Chrome extension for saving Xiaohongshu image posts as editable
 
 <p align="center">
   <img
-    src="docs/images/workflow-redacted.png"
-    alt="OCR range, progress, and Markdown preview"
-    width="1000"
+    src="docs/images/batch-workspace-v1.png"
+    alt="XHS Clipper batch workspace with six anonymous sample posts"
+    width="800"
   />
 </p>
 
@@ -81,9 +81,9 @@ The popup first reads the post body and metadata. Turn on **Recognize text in im
 
 <p align="center">
   <img
-    src="docs/images/popup-overview.png"
-    alt="OCR range, progress, and Markdown preview"
-    width="520"
+    src="docs/images/popup-overview-v1.png"
+    alt="Single-post capture with a custom local OCR range"
+    width="540"
   />
 </p>
 
@@ -118,9 +118,9 @@ Direct writing uses the [Local REST API with MCP](https://github.com/coddingtonb
 
 <p align="center">
   <img
-    src="docs/images/obsidian-settings.png"
-    alt="OCR range, progress, and Markdown preview"
-    width="550"
+    src="docs/images/obsidian-settings-v1.png"
+    alt="Obsidian export settings with the shared Clippings/XHS folder"
+    width="720"
   />
 </p>
 The API key stays in extension storage for the current Chrome profile. XHS Clipper only accepts `127.0.0.1` and `localhost` addresses. Do not publish the API key in screenshots, issues, or logs.

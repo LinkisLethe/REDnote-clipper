@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Documentation
+
+- Replaced outdated interface images with anonymous v1.0.0 screenshots of the batch workspace, single-post popup, and Obsidian settings.
+
 ## 1.0.0 - 2026-08-24
 
 ### Added

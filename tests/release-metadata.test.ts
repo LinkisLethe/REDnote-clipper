@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("release metadata", () => {
@@ -75,5 +75,28 @@ describe("release metadata", () => {
     expect(thirdParty).toContain("PP-OCRv6_tiny_det_onnx_infer.tar");
     expect(english).toContain("independent, unofficial project");
     expect(chinese).toContain("独立开发的非官方项目");
+  });
+
+  it("uses current v1 interface screenshots in both READMEs", () => {
+    const english = readFileSync("README.md", "utf8");
+    const chinese = readFileSync("README.zh-CN.md", "utf8");
+    const screenshots = [
+      "batch-workspace-v1.png",
+      "popup-overview-v1.png",
+      "obsidian-settings-v1.png"
+    ];
+    for (const screenshot of screenshots) {
+      expect(english).toContain(`docs/images/${screenshot}`);
+      expect(chinese).toContain(`docs/images/${screenshot}`);
+      expect(statSync(`docs/images/${screenshot}`).size).toBeGreaterThan(30_000);
+    }
+    for (const oldScreenshot of [
+      "workflow-redacted.png",
+      "popup-overview.png",
+      "obsidian-settings.png"
+    ]) {
+      expect(english).not.toContain(`docs/images/${oldScreenshot}`);
+      expect(chinese).not.toContain(`docs/images/${oldScreenshot}`);
+    }
   });
 });

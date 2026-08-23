@@ -20,9 +20,9 @@ XHS Clipper 是一个把小红书图文笔记保存为可编辑 Markdown 的 Chr
 
 <p align="center">
   <img
-    src="docs/images/workflow-redacted.png"
-    alt="在小红书页面中使用 XHS Clipper"
-    width="1000"
+    src="docs/images/batch-workspace-v1.png"
+    alt="XHS Clipper 批量工作台与六篇匿名示例文章"
+    width="800"
   />
 </p>
 
@@ -81,9 +81,9 @@ pnpm verify
 
 <p align="center">
   <img
-    src="docs/images/popup-overview.png"
-    alt="OCR 范围、进度和 Markdown 预览"
-    width="520"
+    src="docs/images/popup-overview-v1.png"
+    alt="单篇采集与自定义本地 OCR 范围"
+    width="540"
   />
 </p>
 
@@ -118,9 +118,9 @@ pnpm verify
 
 <p align="center">
   <img
-    src="docs/images/obsidian-settings.png"
-    alt="XHS Clipper 的 Obsidian 写入设置"
-    width="550"
+    src="docs/images/obsidian-settings-v1.png"
+    alt="共用 Clippings/XHS 目录的 Obsidian 导出设置"
+    width="720"
   />
 </p>
 

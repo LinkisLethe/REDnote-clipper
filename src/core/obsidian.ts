@@ -19,7 +19,7 @@ export type ObsidianSettingsError =
   | "api-key-required";
 
 export const DEFAULT_OBSIDIAN_SETTINGS: ObsidianSettings = {
-  noteFolder: "Clippings/Xiaohongshu",
+  noteFolder: "Clippings/XHS",
   apiBaseUrl: "http://127.0.0.1:27123"
 };
 

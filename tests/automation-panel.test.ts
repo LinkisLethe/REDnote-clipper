@@ -60,7 +60,8 @@ describe("automation panel entry points and design guardrails", () => {
     expect(content).toContain('data-duplicate-policy="new-version"');
     expect(content).toContain('data-duplicate-policy="overwrite"');
     expect(content).not.toContain("window.confirm");
-    expect(content).toContain("剪藏好了，成功 ${completed} 篇");
+    expect(content).toContain("剪藏结束，成功 ${completed} 篇");
+    expect(content).toContain("<strong>另存为新版本</strong>");
     expect(background).toContain('duplicatePolicy === "new-version"');
     expect(background).toContain("createVersionedMarkdownFilename");
     expect(background).toContain("readMarkdownNoteId(await existing.text())");
@@ -80,5 +81,12 @@ describe("automation panel entry points and design guardrails", () => {
     expect(content).toContain('panel.classList.contains("is-maximized")');
     expect(content).toContain("restoreNormalPanelSize()");
     expect(content).toContain("normalPanelSize = { width: rect.width, height: rect.height }");
+    expect(content).toContain('window.innerWidth - rect.right');
+    expect(content).toContain('panel.style.removeProperty("width")');
+    expect(content).toContain('panel.style.removeProperty("height")');
+    expect(content).toContain('right:var(--panel-anchor-right,16px)');
+    expect(content).not.toContain("inset:4vh 4vw;width:92vw");
+    expect(content.indexOf('panel.style.removeProperty("width")'))
+      .toBeLessThan(content.indexOf('panel.classList.add("is-maximized")'));
   });
 });

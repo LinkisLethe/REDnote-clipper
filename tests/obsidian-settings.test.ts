@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_OBSIDIAN_SETTINGS,
   createObsidianNotePath,
   encodeObsidianVaultPath,
   normalizeObsidianSettings,
@@ -7,6 +8,10 @@ import {
 } from "../src/core/obsidian";
 
 describe("Obsidian settings", () => {
+  it("uses the shared XHS folder by default", () => {
+    expect(DEFAULT_OBSIDIAN_SETTINGS.noteFolder).toBe("Clippings/XHS");
+  });
+
   it("normalizes the folder, URL, and copied Bearer prefix", () => {
     expect(
       normalizeObsidianSettings({

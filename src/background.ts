@@ -39,7 +39,6 @@ import {
 const OCR_JOB_KEY = "lastOcrJob";
 const AUTO_CLIP_TASK_KEY = "localAutomationTask";
 const AUTO_CLIP_HISTORY_KEY = "localAutomationHistory";
-const AUTO_CLIP_OBSIDIAN_FOLDER = "Clippings/XHS";
 const AUTO_CLIP_BATCH_LIMIT = 20;
 const OFFSCREEN_TIMEOUT_MS = 10_000;
 const OBSIDIAN_TIMEOUT_MS = 7_000;
@@ -238,7 +237,7 @@ async function writeAutoClipToObsidian(
   const settings = await getStoredObsidianSettings();
   const headers = { Authorization: `Bearer ${settings.apiKey}` };
   const endpointFor = (targetFilename: string) => {
-    const path = createObsidianNotePath(AUTO_CLIP_OBSIDIAN_FOLDER, targetFilename);
+    const path = createObsidianNotePath(settings.noteFolder, targetFilename);
     return `${settings.apiBaseUrl}/vault/${encodeObsidianVaultPath(path)}`;
   };
   const findExisting = async (targetFilename: string) => {
@@ -567,8 +566,11 @@ async function getStoredObsidianSettings() {
     chrome.storage.local.get(OBSIDIAN_API_KEY_KEY)
   ]);
   const stored = synced[OBSIDIAN_SETTINGS_KEY] as Partial<ObsidianSettings> | undefined;
+  const noteFolder = stored?.noteFolder === "Clippings/Xiaohongshu"
+    ? DEFAULT_OBSIDIAN_SETTINGS.noteFolder
+    : stored?.noteFolder || DEFAULT_OBSIDIAN_SETTINGS.noteFolder;
   const settings = normalizeObsidianSettings({
-    noteFolder: stored?.noteFolder || DEFAULT_OBSIDIAN_SETTINGS.noteFolder,
+    noteFolder,
     apiBaseUrl: stored?.apiBaseUrl || DEFAULT_OBSIDIAN_SETTINGS.apiBaseUrl,
     apiKey: String(local[OBSIDIAN_API_KEY_KEY] || "")
   });

@@ -61,6 +61,15 @@ describe("Obsidian settings controls", () => {
     expect(background).toContain("existing.ok && !request.overwrite");
   });
 
+  it("uses one configured note folder for single-note and automatic clipping", () => {
+    const background = readFileSync("src/background.ts", "utf8");
+    const options = readFileSync("options.html", "utf8");
+    expect(background.match(/createObsidianNotePath\(settings\.noteFolder/g)).toHaveLength(2);
+    expect(background).not.toContain("AUTO_CLIP_OBSIDIAN_FOLDER");
+    expect(background).toContain('stored?.noteFolder === "Clippings/Xiaohongshu"');
+    expect(options).toContain("单篇剪藏和自动剪藏共用 Clippings/XHS");
+  });
+
   it("keeps Obsidian results visible beside the action", () => {
     const popupSource = readFileSync("src/popup.ts", "utf8");
     expect(popupSource).toContain("setObsidianFeedback");

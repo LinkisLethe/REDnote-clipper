@@ -123,4 +123,15 @@ describe("automation panel entry points and design guardrails", () => {
     expect(content).toContain("queue: []");
     expect(content).not.toContain("history: []\n    };");
   });
+
+  it("links every scanned title and open icon to its Xiaohongshu article", () => {
+    expect(content).toContain('const title = document.createElement("a")');
+    expect(content).toContain("title.href = item.url");
+    expect(content).toContain('title.target = "_self"');
+    expect(content).toContain('open.className = "match-open"');
+    expect(content).toContain("open.href = item.url");
+    expect(content).toContain('open.setAttribute("aria-label", `打开文章：${item.title}`)');
+    expect(content).toContain('closest("a,input")');
+    expect(content).toContain("checkbox.click()");
+  });
 });

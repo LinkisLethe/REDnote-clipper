@@ -161,22 +161,6 @@ export type BackgroundRequest =
       apiBaseUrl: string;
       apiKey: string;
     }
-  | {
-      target: "background";
-      type: "WRITE_OBSIDIAN_NOTE";
-      filename: string;
-      markdown: string;
-      overwrite?: boolean;
-    }
-  | {
-      target: "background";
-      type: "RUN_OCR";
-      note: Note;
-      imageIndexes: number[];
-    }
-  | { target: "background"; type: "CANCEL_OCR"; jobId: string }
-  | { target: "background"; type: "PAUSE_OCR"; jobId: string }
-  | { target: "background"; type: "RESUME_OCR"; jobId: string }
   | { target: "background"; type: "OCR_PAUSED"; jobId: string }
   | {
       target: "background";
@@ -214,6 +198,11 @@ export interface AutoClipStatusMessage {
   state: AutoClipPanelState;
 }
 
+export interface AutoClipPanelCommandMessage {
+  target: "content";
+  type: "TOGGLE_AUTO_CLIP_PANEL";
+}
+
 export type OffscreenRequest =
   | { target: "offscreen"; type: "PREWARM_OCR" }
   | {
@@ -231,28 +220,3 @@ export type OffscreenRequest =
   | { target: "offscreen"; type: "PAUSE_OCR"; jobId: string }
   | { target: "offscreen"; type: "RESUME_OCR"; jobId: string }
   | { target: "offscreen"; type: "HAS_OCR_JOB"; jobId: string };
-
-export interface PopupJobUpdate {
-  target: "popup";
-  type: "OCR_JOB_UPDATED";
-  job: OcrJob;
-}
-
-export interface PopupJobProgressPatch {
-  target: "popup";
-  type: "OCR_JOB_PROGRESS";
-  jobId: string;
-  patch: Partial<
-    Pick<
-      OcrJob,
-      | "stage"
-      | "progress"
-      | "stageStartedAt"
-      | "currentImage"
-      | "currentSourceImage"
-      | "currentImageStartedAt"
-      | "stageDurations"
-      | "updatedAt"
-    >
-  >;
-}

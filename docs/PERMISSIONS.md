@@ -6,12 +6,11 @@ XHS Clipper requests only the permissions used by its current capture, OCR, expo
 
 | Permission | Use |
 |---|---|
-| `activeTab` | Access the open Xiaohongshu post after the user activates the popup. |
-| `scripting` | Run the extractor in an open or user-selected post so it can read structured page state and visible content. |
+| `activeTab` | Access the current Xiaohongshu tab after the user selects the extension button. |
+| `scripting` | Reload the workspace if its content script is unavailable and run the extractor in user-selected posts. |
 | `storage` | Save OCR settings, panel preferences, the current batch, up to 200 completion records, and Obsidian settings. |
-| `offscreen` | Keep local OCR running in a hidden extension document instead of tying it to the popup lifetime. |
+| `offscreen` | Keep local OCR running in a hidden extension document instead of tying it to the floating workspace. |
 | `downloads` | Save the generated Markdown file. |
-| `clipboardWrite` | Copy the edited Markdown preview to the system clipboard. |
 
 ## Host access
 

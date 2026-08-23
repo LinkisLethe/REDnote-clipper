@@ -80,7 +80,7 @@ function makeJob(note: Note): OcrJob {
   };
 }
 
-function processPopupUpdate(note: Note, job: OcrJob): number {
+function processWorkspaceUpdate(note: Note, job: OcrJob): number {
   const startedAt = performance.now();
   const updatedNote = applyOcrResults(note, job.results);
   renderMarkdown(updatedNote, { language: "zh-CN", includeOcr: true });
@@ -92,7 +92,7 @@ function processPopupUpdate(note: Note, job: OcrJob): number {
 function processProgressPatch(job: OcrJob): number {
   const startedAt = performance.now();
   const patch = {
-    target: "popup",
+    target: "content",
     type: "OCR_JOB_PROGRESS",
     jobId: job.id,
     patch: {
@@ -111,7 +111,7 @@ function processProgressPatch(job: OcrJob): number {
 }
 
 describe("OCR job state stress metrics", () => {
-  it("reports cumulative popup and storage overhead", () => {
+  it("reports cumulative workspace and storage overhead", () => {
     const note = makeNote();
     const job = makeJob(note);
     const perImageMs: number[] = [];
@@ -121,7 +121,7 @@ describe("OCR job state stress metrics", () => {
       job.results[imageIndex] = compactOcrResult(makeResult(imageIndex));
       job.current = imageIndex + 1;
       job.progress = 50 + Math.round((job.current / job.total) * 45);
-      const resultMs = processPopupUpdate(note, job);
+      const resultMs = processWorkspaceUpdate(note, job);
       perImageMs.push(stageMs + resultMs);
     }
 

@@ -1,6 +1,7 @@
 import type {
   AutoClipCandidate,
   AutoClipDuplicatePolicy,
+  AutoClipPanelCommandMessage,
   AutoClipPanelState,
   AutoClipOutput,
   AutoClipStatusMessage
@@ -822,6 +823,7 @@ function createControlPanel(): void {
   `;
   const panel = document.createElement("section");
   panel.id = PANEL_ID;
+  panel.tabIndex = -1;
   panel.className = "panel";
   panel.setAttribute("aria-label", "XHS Clipper 自动剪藏工作台");
   panel.innerHTML = `
@@ -1029,11 +1031,29 @@ function syncPageScope(force = false): void {
   updateSelectedCount();
 }
 
-chrome.runtime.onMessage.addListener((message: unknown) => {
-  const update = message as Partial<AutoClipStatusMessage>;
-  if (update.target !== "content" || update.type !== "AUTO_CLIP_STATUS" || !update.state) return false;
-  panelState = update.state;
-  scheduleTaskStateRender();
+chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+  const update = message as Partial<AutoClipStatusMessage | AutoClipPanelCommandMessage>;
+  if (update.target !== "content") return false;
+  if (update.type === "AUTO_CLIP_STATUS" && "state" in update && update.state) {
+    panelState = update.state;
+    scheduleTaskStateRender();
+    return false;
+  }
+  if (update.type === "TOGGLE_AUTO_CLIP_PANEL") {
+    const panel = root.querySelector<HTMLElement>(`#${PANEL_ID}`);
+    const minimize = root.querySelector<HTMLButtonElement>("[data-action='minimize']");
+    if (!panel || !minimize) {
+      sendResponse({ ok: false, error: "AUTO_CLIP_PANEL_UNAVAILABLE" });
+      return false;
+    }
+    minimize.click();
+    const minimized = panel.classList.contains("is-minimized");
+    if (!minimized) {
+      syncPageScope(true);
+      requestAnimationFrame(() => panel.focus({ preventScroll: true }));
+    }
+    sendResponse({ ok: true, minimized });
+  }
   return false;
 });
 

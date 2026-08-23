@@ -19,12 +19,10 @@ describe("UI language selection", () => {
     expect(resolveUiLanguage("fr-FR")).toBe("en");
   });
 
-  it("provides Traditional Chinese fallback messages", () => {
+  it("provides Traditional Chinese workspace fallback messages", () => {
     const message = createMessageGetter("zh-TW");
-    expect(message("ocrSelectionCustom")).toBe("自訂");
-    expect(message("ocrSelectionSummary", ["3", "6", "2-4"])).toBe(
-      "3/6 張 · 頁碼 2-4"
-    );
+    expect(message("actionTitle")).toBe("開啟或收起 XHS Clipper 工作台");
+    expect(message("noteFolderHint")).toContain("Clippings/XHS");
   });
 
   it("keeps the XHS Clipper brand in every fallback locale", () => {

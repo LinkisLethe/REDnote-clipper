@@ -2,17 +2,14 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("Obsidian settings controls", () => {
-  it("exposes the options page from the popup", () => {
-    const popup = readFileSync("popup.html", "utf8");
+  it("exposes the options page from the floating workspace", () => {
+    const content = readFileSync("src/content.ts", "utf8");
     const manifest = JSON.parse(readFileSync("public/manifest.json", "utf8")) as {
       options_page?: string;
     };
-    expect(popup).toContain('id="settingsButton"');
-    expect(popup).toContain('id="obsidianButton"');
-    expect(popup).toContain('id="obsidianFeedback"');
-    expect(popup).toContain('id="obsidianFeedbackIcon"');
-    expect(popup).toContain('id="obsidianFeedbackDetail"');
-    expect(popup).not.toContain('id="versionText"');
+    expect(content).toContain('data-action="obsidian-settings"');
+    expect(content).toContain('type: "OPEN_OPTIONS_PAGE"');
+    expect(content).toContain("配置 Obsidian 权限和导出路径");
     expect(manifest.options_page).toBe("options.html");
   });
 
@@ -46,42 +43,27 @@ describe("Obsidian settings controls", () => {
       expect(messages.saveSettings?.message).toBeTruthy();
       expect(messages.testConnection?.message).toBeTruthy();
       expect(messages.obsidianConnected?.message).toBeTruthy();
-      expect(messages.writeToObsidian?.message).toBeTruthy();
-      expect(messages.obsidianOverwriteConfirm?.message).toBeTruthy();
-      expect(messages.obsidianWritten?.message).toBeTruthy();
-      expect(messages.obsidianWrittenShort?.message).toBeTruthy();
+      expect(messages.actionTitle?.message).toBeTruthy();
+      expect(messages.noteFolderHint?.message).toBeTruthy();
+      expect(messages.obsidianHttpError?.message).toBeTruthy();
     }
   });
 
-  it("checks for an existing note before writing it", () => {
+  it("checks for an existing note before a workspace export", () => {
     const background = readFileSync("src/background.ts", "utf8");
-    expect(background).toContain('type: "WRITE_OBSIDIAN_NOTE"');
+    expect(background).toContain("async function writeAutoClipToObsidian");
     expect(background).toContain('method: "GET"');
     expect(background).toContain('method: "PUT"');
-    expect(background).toContain("existing.ok && !request.overwrite");
+    expect(background).toContain("existing.ok && duplicatePolicy === \"skip\"");
   });
 
-  it("uses one configured note folder for single-note and automatic clipping", () => {
+  it("uses the configured note folder for workspace clipping", () => {
     const background = readFileSync("src/background.ts", "utf8");
     const options = readFileSync("options.html", "utf8");
-    expect(background.match(/createObsidianNotePath\(settings\.noteFolder/g)).toHaveLength(2);
+    expect(background.match(/createObsidianNotePath\(settings\.noteFolder/g)).toHaveLength(1);
     expect(background).not.toContain("AUTO_CLIP_OBSIDIAN_FOLDER");
     expect(background).toContain("noteFolder: DEFAULT_OBSIDIAN_SETTINGS.noteFolder");
     expect(background).not.toContain("stored?.noteFolder ||");
-    expect(options).toContain("单篇剪藏和自动剪藏共用 Clippings/XHS");
-  });
-
-  it("keeps Obsidian results visible beside the action", () => {
-    const popupSource = readFileSync("src/popup.ts", "utf8");
-    expect(popupSource).toContain("setObsidianFeedback");
-    expect(popupSource).not.toContain("setTimeout(clearObsidianFeedback");
-    expect(popupSource).toContain('message("obsidianWrittenShort")');
-  });
-
-  it("uses the full footer width for two equal action columns", () => {
-    const css = readFileSync("src/popup.css", "utf8");
-    expect(css).toContain("grid-template-columns: repeat(2, minmax(0, 1fr))");
-    expect(css).toMatch(/\.footer-controls\s*\{[^}]*width:\s*100%;/s);
-    expect(css).toMatch(/\.obsidian-feedback\s*\{[^}]*width:\s*100%;/s);
+    expect(options).toContain("悬浮工作台固定导出到 Clippings/XHS");
   });
 });

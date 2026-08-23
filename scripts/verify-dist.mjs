@@ -6,7 +6,6 @@ const dist = resolve(root, "dist");
 const packageJson = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
 const requiredFiles = [
   "manifest.json",
-  "popup.html",
   "options.html",
   "offscreen.html",
   "LICENSE",
@@ -49,6 +48,15 @@ if (manifest.background?.service_worker !== "assets/background.js") {
 }
 if (manifest.options_page !== "options.html") {
   throw new Error("Obsidian settings page is missing from the manifest");
+}
+if (manifest.action?.default_popup) {
+  throw new Error("The retired single-post popup must not be included");
+}
+if (manifest.action?.default_title !== "__MSG_actionTitle__") {
+  throw new Error("The extension button must describe the floating workspace action");
+}
+if (manifest.permissions?.includes("clipboardWrite")) {
+  throw new Error("The retired popup clipboard permission must not be requested");
 }
 if (!manifest.content_scripts?.some((entry) =>
   entry.matches?.includes("https://www.xiaohongshu.com/*") && entry.js?.includes("assets/content.js")
@@ -109,14 +117,13 @@ if (!runtimeAssets.some((name) => name.endsWith(".wasm"))) {
   throw new Error("Local ONNX Runtime WASM binary was not emitted");
 }
 
-const popupHtml = await readFile(resolve(dist, "popup.html"), "utf8");
 const optionsHtml = await readFile(resolve(dist, "options.html"), "utf8");
 const offscreenHtml = await readFile(resolve(dist, "offscreen.html"), "utf8");
 const contentScript = await readFile(resolve(dist, "assets/content.js"), "utf8");
 if (/^\s*import\b/m.test(contentScript)) {
   throw new Error("Chrome content script must be a self-contained classic script");
 }
-if (/\<script[^>]+src=["']https?:/i.test(`${popupHtml}\n${optionsHtml}\n${offscreenHtml}`)) {
+if (/\<script[^>]+src=["']https?:/i.test(`${optionsHtml}\n${offscreenHtml}`)) {
   throw new Error("Extension pages must not load remote scripts");
 }
 

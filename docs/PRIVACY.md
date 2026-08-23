@@ -2,11 +2,11 @@
 
 Effective date: August 24, 2026
 
-XHS Clipper adds a floating workspace to Xiaohongshu pages. It scans the current page only after the user selects **Scan current page**, and it starts a clipping task only after the user selects posts and confirms the settings. The extension has no developer-operated server, account system, advertising SDK, or analytics service.
+XHS Clipper adds a floating workspace to Xiaohongshu pages. It prepares the current post on an article page. The home feed, search results, and creator profiles are scanned only after the user selects **Scan current page**. Clipping starts only after the user selects posts and confirms the settings. The extension has no developer-operated server, account system, advertising SDK, or analytics service.
 
 ## Data the extension accesses
 
-When the user scans a Xiaohongshu page, XHS Clipper may read the title, URL, visible author name, and thumbnail of post cards already loaded in that tab. It does not scroll the page or load more results by itself.
+When it prepares the current post or scans a Xiaohongshu page, XHS Clipper may read post URLs, titles, visible author names, and thumbnails already loaded in that tab. It does not scroll the page or load more results by itself.
 
 For an open or selected post, XHS Clipper may read the title, body, author information, tags, timestamps, engagement counts, source URL, image URLs, and image content needed for OCR. During a batch, selected posts are opened one at a time in inactive tabs and closed after processing. The extension does not collect comments, read unrelated browser tabs, or process posts that the user did not select.
 

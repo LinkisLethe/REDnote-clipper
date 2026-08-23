@@ -7,6 +7,8 @@ describe("automation panel entry points and design guardrails", () => {
   const types = readFileSync("src/core/types.ts", "utf8");
   const manifest = JSON.parse(readFileSync("public/manifest.json", "utf8")) as {
     content_scripts?: Array<{ matches?: string[]; js?: string[] }>;
+    action?: { default_popup?: string; default_title?: string };
+    permissions?: string[];
   };
 
   it("injects the floating workspace across Xiaohongshu pages", () => {
@@ -15,6 +17,22 @@ describe("automation panel entry points and design guardrails", () => {
     expect(content).toContain('return "搜索结果"');
     expect(content).toContain('return "博主主页"');
     expect(content).toContain('return "首页推荐"');
+  });
+
+  it("uses the extension button to toggle the floating workspace", () => {
+    expect(manifest.action?.default_popup).toBeUndefined();
+    expect(manifest.action?.default_title).toBe("__MSG_actionTitle__");
+    expect(manifest.permissions).not.toContain("clipboardWrite");
+    expect(background).toContain("chrome.action.onClicked.addListener");
+    expect(background).toContain("async function toggleWorkspace");
+    expect(background).toContain('type: "TOGGLE_AUTO_CLIP_PANEL"');
+    expect(background).toContain('files: ["assets/content.js"]');
+    expect(background).toContain("工作台打开失败，请刷新小红书页面后重试");
+    expect(content).toContain('update.type === "TOGGLE_AUTO_CLIP_PANEL"');
+    expect(content).toContain("minimize.click()");
+    expect(content).toContain("syncPageScope(true)");
+    expect(content).toContain("panel.tabIndex = -1");
+    expect(types).toContain('type: "TOGGLE_AUTO_CLIP_PANEL"');
   });
 
   it("isolates the panel from host-page styles and uses design tokens", () => {

@@ -1,6 +1,6 @@
 {
   "name": "xhs-clipper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Clip Xiaohongshu posts to Markdown with local OCR and Obsidian export.",
   "private": true,
   "license": "Apache-2.0",

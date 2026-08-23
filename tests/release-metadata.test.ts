@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("release metadata", () => {
@@ -44,7 +44,6 @@ describe("release metadata", () => {
     const permissions = readFileSync("docs/PERMISSIONS.md", "utf8");
     const options = readFileSync("options.html", "utf8");
     const content = readFileSync("src/content.ts", "utf8");
-    const popup = readFileSync("popup.html", "utf8");
 
     expect(english).toContain("Write to Obsidian");
     expect(english).toContain("Traditional Chinese");
@@ -58,8 +57,9 @@ describe("release metadata", () => {
     expect(permissions).toContain("each batch is limited to 20 selected posts");
     expect(options).not.toContain("实验版");
     expect(content).not.toContain("实验版扩展");
-    expect(popup).toContain("<title>XHS Clipper</title>");
-    expect(popup).not.toContain("Rednote Markdown Collector");
+    expect(existsSync("popup.html")).toBe(false);
+    expect(existsSync("src/popup.ts")).toBe(false);
+    expect(existsSync("src/popup.css")).toBe(false);
   });
 
   it("includes public repository licensing and responsible-use notices", () => {
@@ -82,7 +82,6 @@ describe("release metadata", () => {
     const chinese = readFileSync("README.zh-CN.md", "utf8");
     const screenshots = [
       "batch-workspace-v1.png",
-      "popup-overview-v1.png",
       "obsidian-settings-v1.png"
     ];
     for (const screenshot of screenshots) {
@@ -92,6 +91,7 @@ describe("release metadata", () => {
     }
     for (const oldScreenshot of [
       "workflow-redacted.png",
+      "popup-overview-v1.png",
       "popup-overview.png",
       "obsidian-settings.png"
     ]) {

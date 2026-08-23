@@ -2,9 +2,20 @@
 
 ## Unreleased
 
+## 1.0.1 - 2026-08-24
+
+### Changed
+
+- Clicking the Chrome toolbar button now opens or collapses the floating workspace.
+- Opening the workspace on an article page refreshes and prepares the current post.
+
+### Removed
+
+- Removed the legacy single-post popup, its Markdown editor, and its clipboard permission.
+
 ### Documentation
 
-- Replaced outdated interface images with anonymous v1.0.0 screenshots of the batch workspace, single-post popup, and Obsidian settings.
+- Updated the usage guide for the unified floating workspace and removed the retired popup screenshot.
 
 ## 1.0.0 - 2026-08-24
 

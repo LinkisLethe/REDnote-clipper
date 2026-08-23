@@ -7,9 +7,7 @@ import type {
   BackgroundRequest,
   Note,
   OcrJob,
-  OffscreenRequest,
-  PopupJobProgressPatch,
-  PopupJobUpdate
+  OffscreenRequest
 } from "./core/types";
 import {
   extractXiaohongshuPage,
@@ -18,12 +16,13 @@ import {
 } from "./adapters/xiaohongshu";
 import { createMarkdownFilename, createVersionedMarkdownFilename } from "./core/filename";
 import { applyOcrResults, readMarkdownNoteId, renderMarkdown } from "./core/markdown";
-import { isXiaohongshuNoteUrl, noteIdFromXiaohongshuUrl } from "./core/automation";
-import { resolveOcrImageIndexes, type OcrSelectionMode } from "./core/ocr-selection";
 import {
-  OCR_ENABLED_KEY,
-  OCR_PIPELINE_VERSION
-} from "./core/ocr-job";
+  isXiaohongshuNoteUrl,
+  isXiaohongshuUrl,
+  noteIdFromXiaohongshuUrl
+} from "./core/automation";
+import { resolveOcrImageIndexes, type OcrSelectionMode } from "./core/ocr-selection";
+import { OCR_PIPELINE_VERSION } from "./core/ocr-job";
 import {
   DEFAULT_OBSIDIAN_SETTINGS,
   OBSIDIAN_API_KEY_KEY,
@@ -38,14 +37,17 @@ import {
 const OCR_JOB_KEY = "lastOcrJob";
 const AUTO_CLIP_TASK_KEY = "localAutomationTask";
 const AUTO_CLIP_HISTORY_KEY = "localAutomationHistory";
+const PANEL_PREFERENCES_KEY = "autoClipPanelPreferences";
 const AUTO_CLIP_BATCH_LIMIT = 20;
 const OFFSCREEN_TIMEOUT_MS = 10_000;
 const OBSIDIAN_TIMEOUT_MS = 7_000;
+const ACTION_FEEDBACK_MS = 3_500;
 let creatingOffscreen: Promise<void> | null = null;
 let prewarmingOcr: Promise<void> | null = null;
 let autoClipStarting = false;
 const activeAutoClipTasks = new Set<string>();
 const stopRequestedAutoClipTasks = new Set<string>();
+const actionFeedbackTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
 interface AutoClipTask {
   taskId: string;
@@ -80,6 +82,73 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
   }
 }
 
+function defaultActionTitle(): string {
+  return chrome.i18n.getMessage("actionTitle") || "打开或收起 XHS Clipper 工作台";
+}
+
+function actionMessage(key: "actionUnsupported" | "actionFailed", fallback: string): string {
+  return chrome.i18n.getMessage(key) || fallback;
+}
+
+async function showActionFeedback(tabId: number, text: string, title: string): Promise<void> {
+  const existingTimer = actionFeedbackTimers.get(tabId);
+  if (existingTimer !== undefined) clearTimeout(existingTimer);
+  await Promise.all([
+    chrome.action.setBadgeBackgroundColor({ tabId, color: "#c93a3a" }),
+    chrome.action.setBadgeText({ tabId, text }),
+    chrome.action.setTitle({ tabId, title })
+  ]);
+  actionFeedbackTimers.set(tabId, setTimeout(() => {
+    actionFeedbackTimers.delete(tabId);
+    void Promise.all([
+      chrome.action.setBadgeText({ tabId, text: "" }),
+      chrome.action.setTitle({ tabId, title: defaultActionTitle() })
+    ]).catch(() => undefined);
+  }, ACTION_FEEDBACK_MS));
+}
+
+async function toggleWorkspace(tab: chrome.tabs.Tab): Promise<void> {
+  if (!tab.id) return;
+  if (!isXiaohongshuUrl(tab.url || "")) {
+    await showActionFeedback(
+      tab.id,
+      "XHS",
+      actionMessage("actionUnsupported", "请先打开小红书页面，再使用 XHS Clipper")
+    );
+    return;
+  }
+
+  const toggle = () => chrome.tabs.sendMessage(tab.id!, {
+    target: "content",
+    type: "TOGGLE_AUTO_CLIP_PANEL"
+  }) as Promise<{ ok?: boolean; error?: string }>;
+
+  try {
+    let response: { ok?: boolean; error?: string };
+    try {
+      response = await toggle();
+    } catch {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => document.getElementById("xhs-clipper-auto-root")?.remove()
+      });
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["assets/content.js"]
+      });
+      response = await toggle();
+    }
+    if (!response?.ok) throw new Error(response?.error || "AUTO_CLIP_PANEL_UNAVAILABLE");
+  } catch (error) {
+    console.warn("Unable to toggle the XHS Clipper workspace", error);
+    await showActionFeedback(
+      tab.id,
+      "!",
+      actionMessage("actionFailed", "工作台打开失败，请刷新小红书页面后重试")
+    );
+  }
+}
+
 async function hasOffscreenDocument(): Promise<boolean> {
   if (chrome.runtime.getContexts) {
     const contexts = await withTimeout(
@@ -102,7 +171,7 @@ async function ensureOffscreenDocument(): Promise<void> {
       chrome.offscreen.createDocument({
         url: "offscreen.html",
         reasons: [chrome.offscreen.Reason.BLOBS, chrome.offscreen.Reason.WORKERS],
-        justification: "Run local OCR workers and process image blobs outside the popup."
+        justification: "Run local OCR workers and process image blobs for the floating workspace."
       }),
       OFFSCREEN_TIMEOUT_MS,
       "Creating the OCR background page timed out."
@@ -116,8 +185,9 @@ async function ensureOffscreenDocument(): Promise<void> {
 
 async function prewarmOcrForUrl(url: string | undefined): Promise<void> {
   if (!url || !isXiaohongshuNoteUrl(url)) return;
-  const settings = await chrome.storage.local.get(OCR_ENABLED_KEY);
-  if (!settings[OCR_ENABLED_KEY]) return;
+  const settings = await chrome.storage.local.get(PANEL_PREFERENCES_KEY);
+  const preferences = settings[PANEL_PREFERENCES_KEY] as { ocrEnabled?: boolean } | undefined;
+  if (!preferences?.ocrEnabled) return;
   if (!prewarmingOcr) {
     prewarmingOcr = (async () => {
       await ensureOffscreenDocument();
@@ -658,38 +728,6 @@ async function testObsidianConnection(
   }
 }
 
-async function writeObsidianNote(
-  request: Extract<BackgroundRequest, { type: "WRITE_OBSIDIAN_NOTE" }>
-): Promise<{ ok: boolean; conflict?: true; path: string }> {
-  if (!request.markdown.trim()) throw new Error("OBSIDIAN_CONTENT_EMPTY");
-  const settings = await getStoredObsidianSettings();
-  const path = createObsidianNotePath(settings.noteFolder, request.filename);
-  const endpoint = `${settings.apiBaseUrl}/vault/${encodeObsidianVaultPath(path)}`;
-  const headers = {
-    Authorization: `Bearer ${settings.apiKey}`
-  };
-
-  const existing = await fetchLocalObsidian(endpoint, {
-    method: "GET",
-    headers: { ...headers, Accept: "text/markdown" }
-  });
-  if (existing.status === 401 || existing.status === 403) {
-    throw new Error("OBSIDIAN_UNAUTHORIZED");
-  }
-  if (existing.status !== 404 && !existing.ok) {
-    throw new Error(`OBSIDIAN_HTTP_ERROR:${existing.status}`);
-  }
-  if (existing.ok && !request.overwrite) return { ok: false, conflict: true, path };
-
-  const written = await fetchLocalObsidian(endpoint, {
-    method: "PUT",
-    headers: { ...headers, "Content-Type": "text/markdown; charset=utf-8" },
-    body: request.markdown
-  });
-  assertObsidianResponse(written);
-  return { ok: true, path };
-}
-
 async function hasActiveOcrJob(jobId: string): Promise<boolean> {
   if (!(await hasOffscreenDocument())) return false;
   try {
@@ -706,23 +744,6 @@ async function hasActiveOcrJob(jobId: string): Promise<boolean> {
     return Boolean(response?.active);
   } catch {
     return false;
-  }
-}
-
-async function notifyPopup(job: OcrJob): Promise<void> {
-  const message: PopupJobUpdate = { target: "popup", type: "OCR_JOB_UPDATED", job };
-  try {
-    await chrome.runtime.sendMessage(message);
-  } catch {
-    // The popup may be closed. Terminal job state is discarded after processing.
-  }
-}
-
-async function notifyPopupProgress(message: PopupJobProgressPatch): Promise<void> {
-  try {
-    await chrome.runtime.sendMessage(message);
-  } catch {
-    // The popup may be closed. The next persisted OCR result restores durable progress.
   }
 }
 
@@ -806,7 +827,6 @@ async function startOcr(note: Note, requestedIndexes: number[]): Promise<OcrJob>
       updatedAt: new Date().toISOString()
     };
     await saveJob(failed);
-    await notifyPopup(failed);
     try {
       await finishAutoClip(failed);
     } finally {
@@ -834,78 +854,11 @@ async function updateStage(
     updatedAt: new Date().toISOString()
   };
   if (message.stage === "recognizing-images" && job.stage === "recognizing-images") {
-    await notifyPopupProgress({
-      target: "popup",
-      type: "OCR_JOB_PROGRESS",
-      jobId: job.id,
-      patch: {
-        stage: updated.stage,
-        progress: updated.progress,
-        stageStartedAt: updated.stageStartedAt,
-        currentImage: updated.currentImage,
-        currentSourceImage: updated.currentSourceImage,
-        currentImageStartedAt: updated.currentImageStartedAt,
-        stageDurations: updated.stageDurations,
-        updatedAt: updated.updatedAt
-      }
-    });
     await updateAutoClipProgress(updated);
     return updated;
   }
   await saveJob(updated);
-  await notifyPopup(updated);
   await updateAutoClipProgress(updated);
-  return updated;
-}
-
-async function cancelOcr(jobId: string): Promise<OcrJob | undefined> {
-  const job = await getJob();
-  if (!job || job.id !== jobId || !["running", "pausing", "paused"].includes(job.status)) {
-    return job;
-  }
-  const updated: OcrJob = {
-    ...job,
-    status: "canceled",
-    durationMs: Math.max(
-      0,
-      Date.now() - (Date.parse(job.startedAt || job.updatedAt) || Date.now())
-    ),
-    updatedAt: new Date().toISOString()
-  };
-  await saveJob(updated);
-  await notifyPopup(updated);
-  try {
-    await ensureOffscreenDocument();
-    const request: OffscreenRequest = {
-      target: "offscreen",
-      type: "CANCEL_OCR",
-      jobId,
-      abortInitialization: true
-    };
-    await chrome.runtime.sendMessage(request);
-  } finally {
-    try {
-      await finishAutoClip(updated);
-    } finally {
-      await clearJob(updated.id);
-    }
-  }
-  return updated;
-}
-
-async function pauseOcr(jobId: string): Promise<OcrJob | undefined> {
-  const job = await getJob();
-  if (!job || job.id !== jobId || job.status !== "running") return job;
-  const updated: OcrJob = {
-    ...job,
-    status: "pausing",
-    updatedAt: new Date().toISOString()
-  };
-  await saveJob(updated);
-  await notifyPopup(updated);
-  await ensureOffscreenDocument();
-  const request: OffscreenRequest = { target: "offscreen", type: "PAUSE_OCR", jobId };
-  await chrome.runtime.sendMessage(request);
   return updated;
 }
 
@@ -918,24 +871,7 @@ async function markPaused(jobId: string): Promise<OcrJob | undefined> {
     updatedAt: new Date().toISOString()
   };
   await saveJob(updated);
-  await notifyPopup(updated);
   await updateAutoClipProgress(updated);
-  return updated;
-}
-
-async function resumeOcr(jobId: string): Promise<OcrJob | undefined> {
-  const job = await getJob();
-  if (!job || job.id !== jobId || !["pausing", "paused"].includes(job.status)) return job;
-  const updated: OcrJob = {
-    ...job,
-    status: "running",
-    updatedAt: new Date().toISOString()
-  };
-  await saveJob(updated);
-  await notifyPopup(updated);
-  await ensureOffscreenDocument();
-  const request: OffscreenRequest = { target: "offscreen", type: "RESUME_OCR", jobId };
-  await chrome.runtime.sendMessage(request);
   return updated;
 }
 
@@ -960,7 +896,6 @@ async function updateProgress(
     updatedAt: new Date().toISOString()
   };
   await saveJob(updated);
-  await notifyPopup(updated);
   await updateAutoClipProgress(updated);
   return updated;
 }
@@ -984,7 +919,6 @@ async function finishOcr(
     updatedAt: new Date().toISOString()
   };
   await saveJob(updated);
-  await notifyPopup(updated);
   try {
     await finishAutoClip(updated);
   } finally {
@@ -1024,35 +958,9 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     case "GET_AUTO_CLIP_STATE":
       operation = initialAutoClipPanelState();
       break;
-    case "WRITE_OBSIDIAN_NOTE":
-      operation = writeObsidianNote(
-        request as Extract<BackgroundRequest, { type: "WRITE_OBSIDIAN_NOTE" }>
-      );
-      break;
     case "TEST_OBSIDIAN_CONNECTION":
       operation = testObsidianConnection(
         request as Extract<BackgroundRequest, { type: "TEST_OBSIDIAN_CONNECTION" }>
-      );
-      break;
-    case "RUN_OCR":
-      operation = (() => {
-        const run = request as Extract<BackgroundRequest, { type: "RUN_OCR" }>;
-        return startOcr(run.note, run.imageIndexes);
-      })();
-      break;
-    case "CANCEL_OCR":
-      operation = cancelOcr(
-        (request as Extract<BackgroundRequest, { type: "CANCEL_OCR" }>).jobId
-      );
-      break;
-    case "PAUSE_OCR":
-      operation = pauseOcr(
-        (request as Extract<BackgroundRequest, { type: "PAUSE_OCR" }>).jobId
-      );
-      break;
-    case "RESUME_OCR":
-      operation = resumeOcr(
-        (request as Extract<BackgroundRequest, { type: "RESUME_OCR" }>).jobId
       );
       break;
     case "OCR_PAUSED":
@@ -1086,6 +994,10 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
 });
 
 void clearStaleJobState().catch(() => undefined);
+
+chrome.action.onClicked.addListener((tab) => {
+  void toggleWorkspace(tab);
+});
 
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
   const url = changeInfo.url || tab.url;

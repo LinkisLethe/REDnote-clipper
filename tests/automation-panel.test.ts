@@ -33,7 +33,7 @@ describe("automation panel entry points and design guardrails", () => {
   });
 
   it("uses accessible window icons and keeps the panel width while collapsed", () => {
-    expect(content).toContain('aria-label="放大窗口"');
+    expect(content).toContain('aria-label="宽屏模式"');
     expect(content).toContain("WINDOW_ICONS.expand");
     expect(content).toContain(".panel.is-minimized{height:58px!important");
     expect(content).not.toContain(".panel.is-minimized{width:");
@@ -77,16 +77,20 @@ describe("automation panel entry points and design guardrails", () => {
     expect(content).toContain('aria-describedby="xhs-duplicate-copy"');
   });
 
-  it("keeps maximize and collapse states mutually consistent", () => {
-    expect(content).toContain('panel.classList.contains("is-maximized")');
+  it("uses a right-anchored desktop wide mode and full screen only on small screens", () => {
+    expect(content).toContain('panel.classList.contains("is-wide")');
     expect(content).toContain("restoreNormalPanelSize()");
     expect(content).toContain("normalPanelSize = { width: rect.width, height: rect.height }");
     expect(content).toContain('window.innerWidth - rect.right');
+    expect(content).toContain("PANEL_WIDE_MAX_WIDTH = 800");
+    expect(content).toContain('panel.style.setProperty("--panel-wide-height", `${rect.height}px`)');
     expect(content).toContain('panel.style.removeProperty("width")');
     expect(content).toContain('panel.style.removeProperty("height")');
     expect(content).toContain('right:var(--panel-anchor-right,16px)');
-    expect(content).not.toContain("inset:4vh 4vw;width:92vw");
+    expect(content).toContain('@media(max-width:720px)');
+    expect(content).not.toContain("is-maximized");
+    expect(content).not.toContain("width:92vw");
     expect(content.indexOf('panel.style.removeProperty("width")'))
-      .toBeLessThan(content.indexOf('panel.classList.add("is-maximized")'));
+      .toBeLessThan(content.indexOf('panel.classList.add("is-wide")'));
   });
 });

@@ -9,6 +9,7 @@ import type {
 const ROOT_ID = "xhs-clipper-auto-root";
 const PANEL_ID = "xhs-clipper-auto-panel";
 const AUTO_CLIP_BATCH_LIMIT = 20;
+const PANEL_WIDE_MAX_WIDTH = 800;
 const WINDOW_ICONS = {
   maximize: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="2"/></svg>',
   restore: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h9A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H17"/><rect x="4" y="8" width="12" height="12" rx="1.5"/></svg>',
@@ -423,7 +424,7 @@ function makeDraggable(host: HTMLElement, panel: HTMLElement, handle: HTMLElemen
   let dragFrame: number | undefined;
   let pendingPoint: { x: number; y: number } | undefined;
   handle.addEventListener("pointerdown", (event) => {
-    if ((event.target as HTMLElement).closest("button") || panel.classList.contains("is-maximized")) return;
+    if ((event.target as HTMLElement).closest("button") || panel.classList.contains("is-wide")) return;
     dragging = true;
     const rect = panel.getBoundingClientRect();
     offsetX = event.clientX - rect.left;
@@ -465,15 +466,15 @@ function createControlPanel(): void {
     .settings-grid{display:grid;grid-template-columns:1fr;gap:10px}.setting-card{border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}.setting-card summary{display:flex;align-items:center;justify-content:space-between;padding:11px 12px;cursor:pointer;list-style:none;font-weight:650}.setting-card summary::-webkit-details-marker{display:none}.setting-card summary::after{content:"展开";color:var(--text-tertiary);font-size:11px;font-weight:400}.setting-card[open] summary::after{content:"收起"}.setting-content{display:grid;gap:9px;padding:0 12px 12px}.setting-row{display:flex;align-items:flex-start;gap:9px}.setting-copy{display:grid;gap:2px}.setting-copy small{color:var(--text-tertiary);font-size:11px}.ocr-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:10px 0 0 25px;border-top:1px dashed var(--border);transition:opacity .16s}.ocr-options.is-disabled{opacity:.45}.ocr-options label,.output-options label{display:flex;align-items:flex-start;gap:7px}.ocr-range{grid-column:1/-1;height:34px}.output-options{display:grid;gap:9px}.settings-button{width:100%;height:34px;margin-top:2px}
     .action-zone{position:sticky;bottom:-14px;margin:2px -14px -14px;padding:12px 14px 14px;border-top:1px solid var(--border);background:linear-gradient(to bottom,rgba(255,255,255,.94),#fff 30%)}.start-button{width:100%}.task-card{margin-top:10px;padding:11px 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}.progress-heading{display:flex;justify-content:space-between;gap:8px;color:var(--text-secondary);font-size:11px}.progress-track{height:7px;margin:8px 0;border-radius:999px;background:var(--surface-muted);overflow:hidden}.progress-track i{display:block;height:100%;width:0;border-radius:inherit;background:var(--xhs-red);transition:width .2s}.task-summary{margin:0;color:var(--text-secondary);font-size:12px;overflow-wrap:anywhere}.queue{max-height:130px;margin-top:8px;overflow:auto;scrollbar-width:thin}.queue-row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;padding:7px 0;border-top:1px solid var(--border);font-size:11px}.queue-status{color:var(--text-tertiary);white-space:nowrap}.queue-row.is-completed .queue-status{color:var(--success)}.queue-row.is-error .queue-status{color:var(--danger)}.queue-title{min-width:0;overflow-wrap:anywhere;color:var(--text-secondary)}
     .duplicate-dialog{position:absolute;inset:0;z-index:5;display:grid;place-items:center;padding:18px;background:rgba(20,20,20,.34)}.duplicate-dialog[hidden]{display:none}.duplicate-card{width:min(360px,100%);padding:18px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);box-shadow:var(--shadow)}.duplicate-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.duplicate-heading strong{font-size:15px}.dialog-close{display:grid;place-items:center;width:28px;height:28px;padding:0;border-radius:var(--radius-xs);background:var(--surface-muted);color:var(--text-secondary);cursor:pointer;font-size:18px}.duplicate-copy{margin:8px 0 14px;color:var(--text-secondary);font-size:12px}.duplicate-options{display:grid;gap:8px}.duplicate-option{height:auto;min-height:48px;padding:9px 11px;text-align:left;white-space:normal}.duplicate-option strong,.duplicate-option span{display:block}.duplicate-option span{margin-top:2px;color:var(--text-tertiary);font-size:11px;font-weight:400}.duplicate-option.is-danger{border-color:rgba(201,58,58,.24);color:var(--danger)}
-    .toast{position:fixed;right:24px;bottom:24px;z-index:2147483647;max-width:380px;padding:11px 14px;border-radius:var(--radius-sm);color:#fff;box-shadow:var(--shadow);font-size:13px}.toast.is-working{background:#333}.toast.is-success{background:var(--success)}.toast.is-error{background:var(--danger);cursor:pointer}.panel.is-minimized{height:58px!important;min-height:58px;resize:none}.panel.is-minimized .panel-body{display:none}.panel.is-maximized{position:fixed;top:4vh;right:var(--panel-anchor-right,16px);bottom:4vh;left:4vw;width:auto;height:auto;max-width:none;max-height:none;resize:none;font-size:15px}.panel.is-maximized .panel-header{height:64px;padding:0 20px}.panel.is-maximized .brand strong{font-size:16px}.panel.is-maximized .panel-body{height:calc(100% - 64px);display:grid;grid-template-columns:minmax(0,1.55fr) minmax(390px,.8fr);gap:24px;overflow:hidden;padding:22px}.panel.is-maximized .main-pane,.panel.is-maximized .side-pane{overflow:auto;padding-right:4px}.panel.is-maximized .matches{height:calc(92vh - 220px);min-height:420px}.panel.is-maximized .match-row{padding:13px}.panel.is-maximized .match-title{font-size:15px}.panel.is-maximized .settings-grid{gap:12px}.panel.is-maximized .action-zone{bottom:-22px;margin-left:0;margin-right:0;padding-left:0;padding-right:0}.panel.is-maximized .queue{max-height:240px}
-    @media(max-width:720px){.panel{width:min(400px,calc(100vw - 16px));min-width:300px}.panel.is-maximized{top:8px;right:var(--panel-anchor-right,8px);bottom:8px;left:8px;width:auto;height:auto}.panel.is-maximized .panel-body{display:block;overflow:auto;padding:14px}.ocr-options{grid-template-columns:1fr}.ocr-range{grid-column:1}.selection-hint{display:none}}
+    .toast{position:fixed;right:24px;bottom:24px;z-index:2147483647;max-width:380px;padding:11px 14px;border-radius:var(--radius-sm);color:#fff;box-shadow:var(--shadow);font-size:13px}.toast.is-working{background:#333}.toast.is-success{background:var(--success)}.toast.is-error{background:var(--danger);cursor:pointer}.panel.is-minimized{height:58px!important;min-height:58px;resize:none}.panel.is-minimized .panel-body{display:none}.panel.is-wide{position:fixed;top:var(--panel-anchor-top,72px);right:var(--panel-anchor-right,16px);width:var(--panel-wide-width,800px);height:var(--panel-wide-height,760px);max-width:calc(100vw - 24px);max-height:calc(100vh - 16px);resize:none}.panel.is-wide .panel-body{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:18px;overflow:hidden;padding:18px}.panel.is-wide .main-pane{overflow:hidden}.panel.is-wide .side-pane{overflow:auto;padding-right:4px}.panel.is-wide .main-pane>.section{height:100%;display:flex;flex-direction:column;margin-bottom:0}.panel.is-wide .matches{height:auto;min-height:280px;flex:1}.panel.is-wide .match-row{padding:12px}.panel.is-wide .settings-grid{gap:12px}.panel.is-wide .action-zone{bottom:-18px;margin-left:0;margin-right:0;padding-left:0;padding-right:0}.panel.is-wide .queue{max-height:180px}
+    @media(max-width:720px){.panel{width:min(400px,calc(100vw - 16px));min-width:300px}.panel.is-wide{top:8px;right:8px;bottom:8px;left:8px;width:auto;height:auto;max-width:none;max-height:none}.panel.is-wide .panel-body{display:block;overflow:auto;padding:14px}.panel.is-wide .main-pane,.panel.is-wide .side-pane{overflow:visible;padding-right:0}.panel.is-wide .main-pane>.section{height:auto;display:block}.panel.is-wide .matches{height:212px;min-height:0}.ocr-options{grid-template-columns:1fr}.ocr-range{grid-column:1}.selection-hint{display:none}}
   `;
   const panel = document.createElement("section");
   panel.id = PANEL_ID;
   panel.className = "panel";
   panel.setAttribute("aria-label", "XHS Clipper 自动剪藏工作台");
   panel.innerHTML = `
-    <header class="panel-header" data-role="header"><span class="brand-dot" aria-hidden="true"></span><span class="brand"><strong>XHS Clipper</strong><span class="scope" data-role="scope">${scopeLabel()} · 当前页</span></span><span class="window-actions"><button class="window-button" data-action="resize" type="button" aria-label="放大窗口" title="放大窗口">${WINDOW_ICONS.maximize}</button><button class="window-button" data-action="minimize" type="button" aria-label="收起窗口" title="收起窗口">${WINDOW_ICONS.collapse}</button></span></header>
+    <header class="panel-header" data-role="header"><span class="brand-dot" aria-hidden="true"></span><span class="brand"><strong>XHS Clipper</strong><span class="scope" data-role="scope">${scopeLabel()} · 当前页</span></span><span class="window-actions"><button class="window-button" data-action="resize" type="button" aria-label="宽屏模式" title="宽屏模式">${WINDOW_ICONS.maximize}</button><button class="window-button" data-action="minimize" type="button" aria-label="收起窗口" title="收起窗口">${WINDOW_ICONS.collapse}</button></span></header>
     <main class="panel-body">
       <section class="main-pane"><div class="section"><div class="section-heading"><span class="section-title"><strong>筛选当前页</strong><span>扫描当前页面已经加载的笔记，不会跨页面混入旧结果</span></span><span class="count-group"><span class="badge" data-role="source-count">当前页已加载 0</span><span class="badge" data-role="match-count">找到 0</span><span class="badge" data-role="selected-count">已选 0</span></span></div><div class="search-row"><input class="text-input" data-role="query" data-task-control type="text" placeholder="可选关键词，例如 新二 cs"><button class="button button-primary" data-action="search" data-task-control type="button">扫描当前页</button></div><div class="selection-bar"><button class="button button-secondary" data-action="select-all" data-task-control type="button">选择前 20 篇</button><button class="button button-secondary" data-action="select-none" data-task-control type="button">清空选择</button><span class="selection-hint">单批最多 ${AUTO_CLIP_BATCH_LIMIT} 篇</span></div><div class="matches" data-role="matches"><div class="empty-state"><strong>先扫描当前页面</strong><span>主页、搜索页和博主主页都可以使用；继续滚动后可再次扫描。</span></div></div></div></section>
       <aside class="side-pane"><div class="settings-grid"><details class="setting-card" open><summary>内容识别</summary><div class="setting-content"><label class="setting-row"><input type="checkbox" data-role="ocr-enabled" data-task-control checked><span class="setting-copy"><strong>启用本地 OCR</strong><small>关闭后只保存网页正文与原图</small></span></label><div class="ocr-options" data-role="ocr-options"><label><input type="radio" name="xhs-auto-ocr-mode" data-task-control value="all" checked>全部图片</label><label><input type="radio" name="xhs-auto-ocr-mode" data-task-control value="skip-cover">跳过封面</label><label><input type="radio" name="xhs-auto-ocr-mode" data-task-control value="custom">自定义页码</label><input class="text-input ocr-range" data-role="ocr-range" data-task-control type="text" placeholder="例如 1,3-5" disabled></div></div></details><details class="setting-card" open><summary>导出位置</summary><div class="setting-content output-options"><label><input type="radio" name="xhs-auto-output" data-task-control value="download" checked>Chrome 默认下载路径</label><label><input type="radio" name="xhs-auto-output" data-task-control value="obsidian">Obsidian · Clippings/XHS</label><button class="button button-secondary settings-button" data-action="obsidian-settings" type="button">配置实验版 Obsidian</button></div></details></div><div class="action-zone"><button class="button button-primary start-button" data-action="start" data-task-control type="button" disabled>开始剪藏</button><div class="task-card"><div class="progress-heading"><span data-role="progress-label">任务状态</span><span data-role="progress-value">0%</span></div><div class="progress-track"><i data-role="progress"></i></div><p class="task-summary" data-role="summary">还没有运行任务</p><div class="queue" data-role="queue"></div></div></div></aside>
@@ -493,27 +494,30 @@ function createControlPanel(): void {
     minimize.title = minimized ? "打开窗口" : "收起窗口";
   };
   const updateResizeButton = () => {
-    const maximized = panel.classList.contains("is-maximized");
-    resize.innerHTML = maximized ? WINDOW_ICONS.restore : WINDOW_ICONS.maximize;
-    resize.setAttribute("aria-label", maximized ? "还原窗口" : "放大窗口");
-    resize.title = maximized ? "还原窗口" : "放大窗口";
+    const wide = panel.classList.contains("is-wide");
+    resize.innerHTML = wide ? WINDOW_ICONS.restore : WINDOW_ICONS.maximize;
+    resize.setAttribute("aria-label", wide ? "还原窗口" : "宽屏模式");
+    resize.title = wide ? "还原窗口" : "宽屏模式";
   };
   const restoreNormalPanelSize = () => {
-    panel.classList.remove("is-maximized");
+    panel.classList.remove("is-wide");
     if (normalPanelSize) {
       panel.style.width = `${normalPanelSize.width}px`;
       panel.style.height = `${normalPanelSize.height}px`;
     }
+    panel.style.removeProperty("--panel-anchor-top");
     panel.style.removeProperty("--panel-anchor-right");
+    panel.style.removeProperty("--panel-wide-width");
+    panel.style.removeProperty("--panel-wide-height");
     updateResizeButton();
   };
   minimize.onclick = () => {
-    if (panel.classList.contains("is-maximized")) restoreNormalPanelSize();
+    if (panel.classList.contains("is-wide")) restoreNormalPanelSize();
     panel.classList.toggle("is-minimized");
     updateMinimizeButton();
   };
   resize.onclick = () => {
-    if (panel.classList.contains("is-maximized")) {
+    if (panel.classList.contains("is-wide")) {
       restoreNormalPanelSize();
       return;
     }
@@ -523,13 +527,19 @@ function createControlPanel(): void {
     }
     const rect = panel.getBoundingClientRect();
     normalPanelSize = { width: rect.width, height: rect.height };
+    const rightOffset = Math.max(8, window.innerWidth - rect.right);
+    const availableWidth = Math.max(360, window.innerWidth - rightOffset - 16);
+    const wideWidth = Math.min(PANEL_WIDE_MAX_WIDTH, availableWidth);
+    panel.style.setProperty("--panel-anchor-top", `${Math.max(8, rect.top)}px`);
     panel.style.setProperty(
       "--panel-anchor-right",
-      `${Math.max(8, window.innerWidth - rect.right)}px`
+      `${rightOffset}px`
     );
+    panel.style.setProperty("--panel-wide-width", `${wideWidth}px`);
+    panel.style.setProperty("--panel-wide-height", `${rect.height}px`);
     panel.style.removeProperty("width");
     panel.style.removeProperty("height");
-    panel.classList.add("is-maximized");
+    panel.classList.add("is-wide");
     updateResizeButton();
   };
   panelElement<HTMLButtonElement>("[data-action='search']").onclick = () => {

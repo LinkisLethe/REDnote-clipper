@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 describe("automation panel entry points and design guardrails", () => {
   const content = readFileSync("src/content.ts", "utf8");
   const background = readFileSync("src/background.ts", "utf8");
+  const types = readFileSync("src/core/types.ts", "utf8");
   const manifest = JSON.parse(readFileSync("public/manifest.json", "utf8")) as {
     content_scripts?: Array<{ matches?: string[]; js?: string[] }>;
   };
@@ -51,7 +52,8 @@ describe("automation panel entry points and design guardrails", () => {
     expect(content).toContain("currentArticleCandidate(retainedCandidate)");
     expect(content).toContain("selectedNoteIds.add(noteId)");
     expect(content).toContain('textContent = "当前文章 · 已准备"');
-    expect(content).toContain("setInterval(() => syncPageScope(), 1_000)");
+    expect(content).toContain("if (panelState.running) scheduleTaskStateRender()");
+    expect(content).toContain("}, 1_000)");
     expect(content).toContain("${location.pathname}${location.search}${location.hash}");
   });
 
@@ -124,14 +126,63 @@ describe("automation panel entry points and design guardrails", () => {
     expect(content).not.toContain("history: []\n    };");
   });
 
-  it("links every scanned title and open icon to its Xiaohongshu article", () => {
-    expect(content).toContain('const title = document.createElement("a")');
-    expect(content).toContain("title.href = item.url");
-    expect(content).toContain('title.target = "_self"');
-    expect(content).toContain('open.className = "match-open"');
-    expect(content).toContain("open.href = item.url");
-    expect(content).toContain('open.setAttribute("aria-label", `打开文章：${item.title}`)');
+  it("uses one accessible article link for both the title and open icon", () => {
+    expect(content).toContain('const link = document.createElement("a")');
+    expect(content).toContain("link.href = item.url");
+    expect(content).toContain('link.target = "_self"');
+    expect(content).toContain('link.setAttribute("aria-label", `打开文章：${item.title}`)');
+    expect(content).toContain('const open = document.createElement("span")');
+    expect(content).not.toContain('const open = document.createElement("a")');
     expect(content).toContain('closest("a,input")');
     expect(content).toContain("checkbox.click()");
+  });
+
+  it("shows a keyboard accessible start summary before creating a task", () => {
+    expect(content).toContain("function confirmBatchStart");
+    expect(content).toContain('data-role="confirm-count"');
+    expect(content).toContain('data-role="confirm-ocr"');
+    expect(content).toContain('data-role="confirm-output"');
+    expect(content).toContain('data-action="confirm-start"');
+    expect(content).toContain("if (!await confirmBatchStart(items.length, output)) return");
+    expect(content.indexOf("confirmBatchStart(items.length, output)"))
+      .toBeLessThan(content.indexOf("await startBatch(items, output)"));
+  });
+
+  it("keeps OCR choices on one line and enriches rows only in wide mode", () => {
+    expect(content).toContain("grid-template-columns:max-content max-content max-content");
+    expect(content).toContain(".ocr-options label{white-space:nowrap}");
+    expect(content).toContain("thumbnailUrl?: string");
+    expect(content).toContain("authorName?: string");
+    expect(content).toContain("const workspaceMode =");
+    expect(content).toContain("workspaceMode ? candidatePreview(link, previewCache) : {}");
+    expect(content).toContain("candidatePreview(link, previewCache)");
+    expect(content).toContain(".match-thumbnail{display:none}");
+    expect(content).toContain(".panel.is-wide .match-thumbnail{display:block");
+    expect(content).toContain(".panel.is-wide .match-author{display:inline}");
+  });
+
+  it("can stop safely after the current article and reports elapsed time", () => {
+    expect(types).toContain('type: "STOP_AUTO_CLIP_TASK"');
+    expect(types).toContain('stopRequested?: boolean');
+    expect(types).toContain('| "canceled"');
+    expect(background).toContain("async function requestAutoClipStop");
+    expect(background).toContain("stopRequestedAutoClipTasks.add(taskId)");
+    expect(background).toContain('item.status === "queued" ? { ...item, status: "canceled" as const }');
+    expect(background).toContain("if (task.stopRequested)");
+    expect(content).toContain('data-action="stop-task"');
+    expect(content).toContain("处理完当前篇后停止");
+    expect(content).toContain("预计剩余 ${formatDuration");
+  });
+
+  it("temporarily docks the normal panel while the page scrolls", () => {
+    expect(content).toContain(".panel.is-reading:not(.is-wide):not(.is-minimized):not(.is-task-running)");
+    expect(content).toContain('window.addEventListener("scroll"');
+    expect(content).toContain('panel.classList.add("is-reading")');
+    expect(content).toContain('host.addEventListener("pointerenter", revealPanel)');
+    expect(content).toContain("readingModeTimer = setTimeout(revealPanel, 1_800)");
+  });
+
+  it("keeps the existing all-keywords matching behavior", () => {
+    expect(content).toContain("return terms.every((term) => normalizedTitle.includes(term))");
   });
 });

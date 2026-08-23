@@ -45,6 +45,7 @@ let creatingOffscreen: Promise<void> | null = null;
 let prewarmingOcr: Promise<void> | null = null;
 let autoClipStarting = false;
 const activeAutoClipTasks = new Set<string>();
+const stopRequestedAutoClipTasks = new Set<string>();
 
 interface AutoClipTask {
   taskId: string;
@@ -62,6 +63,7 @@ interface AutoClipTask {
   jobId?: string;
   note?: Note;
   startedAt: string;
+  stopRequested?: boolean;
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
@@ -148,6 +150,8 @@ async function autoClipPanelState(task?: AutoClipTask): Promise<AutoClipPanelSta
     total: current?.queue.length || 0,
     progress: current?.progress || 0,
     stage: current?.jobId ? (await getJob())?.stage : undefined,
+    startedAt: current?.startedAt,
+    stopRequested: Boolean(current?.stopRequested),
     queue: current?.queue || [],
     history
   };
@@ -176,8 +180,11 @@ async function notifyAutoClip(task: AutoClipTask): Promise<void> {
 }
 
 async function saveAutoClipTask(task: AutoClipTask): Promise<void> {
-  await chrome.storage.local.set({ [AUTO_CLIP_TASK_KEY]: task });
-  await notifyAutoClip(task);
+  const persistedTask = stopRequestedAutoClipTasks.has(task.taskId)
+    ? { ...task, stopRequested: true }
+    : task;
+  await chrome.storage.local.set({ [AUTO_CLIP_TASK_KEY]: persistedTask });
+  await notifyAutoClip(persistedTask);
 }
 
 function updateQueueItem(
@@ -337,8 +344,30 @@ async function recordAutoClipSuccess(
 }
 
 async function finishAutoClipQueue(task: AutoClipTask): Promise<void> {
-  const finished = { ...task, running: false, progress: 100, articleTabId: undefined, jobId: undefined, note: undefined };
+  const queue = task.stopRequested
+    ? task.queue.map((item) => item.status === "queued" ? { ...item, status: "canceled" as const } : item)
+    : task.queue;
+  const finished = {
+    ...task,
+    running: false,
+    progress: task.stopRequested ? task.progress : 100,
+    queue,
+    articleTabId: undefined,
+    jobId: undefined,
+    note: undefined
+  };
+  stopRequestedAutoClipTasks.delete(task.taskId);
   await saveAutoClipTask(finished);
+}
+
+async function requestAutoClipStop(taskId: string): Promise<AutoClipPanelState> {
+  const stored = await chrome.storage.local.get(AUTO_CLIP_TASK_KEY);
+  const task = stored[AUTO_CLIP_TASK_KEY] as AutoClipTask | undefined;
+  if (!task || task.taskId !== taskId || !task.running) return autoClipPanelState(task);
+  stopRequestedAutoClipTasks.add(taskId);
+  const stopping = { ...task, stopRequested: true };
+  await saveAutoClipTask(stopping);
+  return autoClipPanelState(stopping);
 }
 
 async function recoverAutoClipQueue(): Promise<void> {
@@ -346,6 +375,16 @@ async function recoverAutoClipQueue(): Promise<void> {
   let task = stored[AUTO_CLIP_TASK_KEY] as AutoClipTask | undefined;
   if (!task?.running) return;
   if (activeAutoClipTasks.has(task.taskId)) return;
+
+  if (task.stopRequested && !task.jobId) {
+    if (task.articleTabId) await chrome.tabs.remove(task.articleTabId).catch(() => undefined);
+    const current = task.queue[task.currentIndex];
+    if (current && ["opening", "extracting", "exporting"].includes(current.status)) {
+      task = updateQueueItem(task, task.currentIndex, { status: "canceled", error: undefined });
+    }
+    await finishAutoClipQueue({ ...task, articleTabId: undefined, note: undefined });
+    return;
+  }
 
   if (task.jobId) {
     const job = await getJob();
@@ -382,6 +421,10 @@ async function processAutoClipQueue(taskId: string): Promise<void> {
   const stored = await chrome.storage.local.get(AUTO_CLIP_TASK_KEY);
   let task = stored[AUTO_CLIP_TASK_KEY] as AutoClipTask | undefined;
   if (!task || task.taskId !== taskId || !task.running || task.jobId) return;
+  if (task.stopRequested) {
+    await finishAutoClipQueue(task);
+    return;
+  }
   const nextIndex = task.queue.findIndex((item) => item.status === "queued");
   if (nextIndex < 0) {
     await finishAutoClipQueue(task);
@@ -481,7 +524,8 @@ async function startAutoClipBatch(
       progress: 0,
       queue: unique.map((item) => ({ ...item, status: "queued" })),
       originTabId,
-      startedAt: new Date().toISOString()
+      startedAt: new Date().toISOString(),
+      stopRequested: false
     };
     await saveAutoClipTask(task);
     void processAutoClipQueue(task.taskId);
@@ -973,6 +1017,11 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
       operation = startAutoClipBatch(
         request as Extract<BackgroundRequest, { type: "AUTO_CLIP_BATCH" }>,
         sender.tab?.id
+      );
+      break;
+    case "STOP_AUTO_CLIP_TASK":
+      operation = requestAutoClipStop(
+        (request as Extract<BackgroundRequest, { type: "STOP_AUTO_CLIP_TASK" }>).taskId
       );
       break;
     case "GET_AUTO_CLIP_STATE":

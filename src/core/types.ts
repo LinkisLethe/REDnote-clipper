@@ -96,6 +96,8 @@ export type AutoClipDuplicatePolicy = "skip" | "new-version" | "overwrite";
 export interface AutoClipCandidate {
   url: string;
   title: string;
+  authorName?: string;
+  thumbnailUrl?: string;
 }
 
 export type AutoClipItemStatus =
@@ -106,6 +108,7 @@ export type AutoClipItemStatus =
   | "exporting"
   | "completed"
   | "skipped"
+  | "canceled"
   | "error";
 
 export interface AutoClipQueueItem extends AutoClipCandidate {
@@ -132,6 +135,8 @@ export interface AutoClipPanelState {
   total: number;
   progress: number;
   stage?: OcrStage;
+  startedAt?: string;
+  stopRequested?: boolean;
   queue: AutoClipQueueItem[];
   history: AutoClipHistoryEntry[];
 }
@@ -147,6 +152,7 @@ export type BackgroundRequest =
       ocrMode: "all" | "skip-cover" | "custom";
       ocrRange: string;
     }
+  | { target: "background"; type: "STOP_AUTO_CLIP_TASK"; taskId: string }
   | { target: "background"; type: "OPEN_OPTIONS_PAGE" }
   | { target: "background"; type: "GET_AUTO_CLIP_STATE" }
   | {

@@ -161,6 +161,22 @@ describe("automation panel entry points and design guardrails", () => {
     expect(content).toContain(".panel.is-wide .match-author{display:inline}");
   });
 
+  it("only shows custom OCR page controls when that mode is selected", () => {
+    expect(content).toContain('data-role="ocr-range" data-task-control type="text" placeholder="例如 1,3-5" hidden disabled');
+    expect(content).toContain('data-role="ocr-estimate" hidden');
+    expect(content).toContain("range.hidden = !custom");
+    expect(content).toContain("estimate.hidden = !custom");
+    expect(content).toContain("estimateOcrPageCount(range.value)");
+    expect(content).toContain("每篇预计识别 ${pageCount} 张，以文章实际图片为准");
+    expect(content).toContain("填写后显示预计识别数量");
+    expect(content).toContain(".ocr-range[hidden],.ocr-estimate[hidden]{display:none}");
+  });
+
+  it("uses a clear Obsidian configuration label", () => {
+    expect(content).toContain("配置 Obsidian 权限和导出路径");
+    expect(content).not.toContain("配置实验版 Obsidian");
+  });
+
   it("can stop safely after the current article and reports elapsed time", () => {
     expect(types).toContain('type: "STOP_AUTO_CLIP_TASK"');
     expect(types).toContain('stopRequested?: boolean');

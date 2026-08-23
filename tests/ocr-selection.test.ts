@@ -1,8 +1,29 @@
 import { describe, expect, it } from "vitest";
 import {
+  estimateOcrPageCount,
   formatOcrPageList,
   resolveOcrImageIndexes
 } from "../src/core/ocr-selection";
+
+describe("estimateOcrPageCount", () => {
+  it("counts individual pages and ranges", () => {
+    expect(estimateOcrPageCount("1,3-5")).toBe(4);
+  });
+
+  it("merges overlapping page ranges", () => {
+    expect(estimateOcrPageCount("1-3,2-4")).toBe(4);
+  });
+
+  it("accepts Chinese separators", () => {
+    expect(estimateOcrPageCount("1，3至5")).toBe(4);
+  });
+
+  it("rejects empty, reversed, and malformed ranges", () => {
+    expect(estimateOcrPageCount("")).toBeUndefined();
+    expect(estimateOcrPageCount("5-3")).toBeUndefined();
+    expect(estimateOcrPageCount("1,,3")).toBeUndefined();
+  });
+});
 
 describe("resolveOcrImageIndexes", () => {
   it("selects every image", () => {

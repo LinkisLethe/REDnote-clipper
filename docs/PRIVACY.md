@@ -1,18 +1,22 @@
 # Privacy policy
 
-Effective date: July 29, 2026
+Effective date: August 24, 2026
 
-XHS Clipper processes a Xiaohongshu image post only after the user opens that post and activates the extension. The extension has no developer-operated server, account system, advertising SDK, or analytics service.
+XHS Clipper adds a floating workspace to Xiaohongshu pages. It scans the current page only after the user selects **Scan current page**, and it starts a clipping task only after the user selects posts and confirms the settings. The extension has no developer-operated server, account system, advertising SDK, or analytics service.
 
 ## Data the extension accesses
 
-For the current user-opened post, XHS Clipper may read the title, body, author information, tags, timestamps, engagement counts, source URL, image URLs, and image content needed for OCR. It does not browse creator profiles, collect comments, or capture other posts in the background.
+When the user scans a Xiaohongshu page, XHS Clipper may read the title, URL, visible author name, and thumbnail of post cards already loaded in that tab. It does not scroll the page or load more results by itself.
+
+For an open or selected post, XHS Clipper may read the title, body, author information, tags, timestamps, engagement counts, source URL, image URLs, and image content needed for OCR. During a batch, selected posts are opened one at a time in inactive tabs and closed after processing. The extension does not collect comments, read unrelated browser tabs, or process posts that the user did not select.
 
 ## Local processing
 
 OCR runs inside Chrome with models bundled in the extension. Images and recognized text are not sent to a remote OCR provider. Image data is read into memory for recognition and is not exported as image files.
 
-The extension may keep the OCR enabled state, the latest OCR job, recognized text, image URLs, and the Obsidian API key in Chrome local extension storage. The Obsidian note folder and local API address may be stored with Chrome extension sync so the user's own Chrome profile can reuse those preferences. XHS Clipper does not receive that synced data.
+Chrome local extension storage may contain the OCR setting, an in-progress OCR job, floating-workspace preferences, the current batch queue, and up to 200 completed clipping records. These records contain post IDs, titles, URLs, filenames, output types, and completion times so the interface can mark posts already handled. The Obsidian API key is also stored locally. Completed OCR image text is removed from the temporary OCR job when the task ends.
+
+The Obsidian note folder and local API address may be stored with Chrome extension sync so the user's own Chrome profile can reuse those preferences. XHS Clipper does not receive that synced data.
 
 ## Data leaving the extension
 
@@ -26,7 +30,7 @@ The source page and its image delivery hosts receive normal browser requests req
 
 ## Retention and deletion
 
-XHS Clipper does not maintain a remote copy of captured content. Users can remove locally stored extension data from Chrome's extension settings or by uninstalling the extension. Downloaded Markdown files and notes written to Obsidian remain under the user's control.
+XHS Clipper does not maintain a remote copy of captured content. Users can remove preferences, task records, and completion history from Chrome's extension settings or by uninstalling the extension. Downloaded Markdown files and notes written to Obsidian remain under the user's control.
 
 ## Changes and contact
 

@@ -2,9 +2,9 @@ import type { UiLanguage } from "./types";
 
 const fallbackMessages: Record<UiLanguage, Record<string, string>> = {
   "zh-CN": {
-    extensionName: "红薯 Markdown 采集器",
-    extensionDescription: "将当前小红书笔记导出为纯文本 Markdown，可选本地 OCR。",
-    appSubtitle: "当前笔记转纯文本 Markdown",
+    extensionName: "XHS Clipper",
+    extensionDescription: "将小红书笔记批量剪藏为 Markdown，可选本地 OCR 和 Obsidian 导出。",
+    appSubtitle: "单篇与批量剪藏到 Markdown",
     refresh: "重新采集",
     settings: "设置",
     settingsTitle: "Obsidian 写入设置",
@@ -119,9 +119,9 @@ const fallbackMessages: Record<UiLanguage, Record<string, string>> = {
     canceling: "当前图片完成后取消…"
   },
   "zh-TW": {
-    extensionName: "紅薯 Markdown 採集器",
-    extensionDescription: "將目前的小紅書筆記匯出為純文字 Markdown，可選擇在本機執行 OCR。",
-    appSubtitle: "目前筆記轉純文字 Markdown",
+    extensionName: "XHS Clipper",
+    extensionDescription: "將小紅書筆記批次剪藏為 Markdown，可選擇本機 OCR 和 Obsidian 匯出。",
+    appSubtitle: "單篇與批次剪藏到 Markdown",
     refresh: "重新採集",
     settings: "設定",
     settingsTitle: "Obsidian 寫入設定",
@@ -236,9 +236,9 @@ const fallbackMessages: Record<UiLanguage, Record<string, string>> = {
     canceling: "目前圖片完成後取消…"
   },
   en: {
-    extensionName: "Rednote Markdown Collector",
-    extensionDescription: "Export the current Xiaohongshu note as plain-text Markdown with optional local OCR.",
-    appSubtitle: "Current note to plain-text Markdown",
+    extensionName: "XHS Clipper",
+    extensionDescription: "Clip Xiaohongshu posts as Markdown with optional local OCR and Obsidian export.",
+    appSubtitle: "Single and batch clipping to Markdown",
     refresh: "Capture again",
     settings: "Settings",
     settingsTitle: "Obsidian export settings",

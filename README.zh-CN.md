@@ -6,17 +6,17 @@
 
 <h1 align="center">XHS Clipper</h1>
 
-<p align="center">把小红书图文笔记整理成可编辑的纯文本 Markdown。</p>
+<p align="center">把一篇或多篇小红书图文笔记整理成可编辑的纯文本 Markdown。</p>
 
 <p align="center">
   <a href="https://www.google.com/chrome/"><img src="https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&amp;logoColor=white&amp;style=flat-square" alt="Chrome 116+" /></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-7.x-3178C6?logo=typescript&amp;logoColor=white&amp;style=flat-square" alt="TypeScript 7.x" /></a>
   <a href="https://github.com/PaddlePaddle/PaddleOCR"><img src="https://img.shields.io/badge/OCR-PP--OCRv6-0C7BDC?style=flat-square" alt="PP-OCRv6" /></a>
-  <a href="https://github.com/LinkisLethe/xhs-clipper/releases/latest"><img src="https://img.shields.io/badge/version-0.4.1-D8473E?style=flat-square" alt="版本 0.4.1" /></a>
+  <a href="https://github.com/LinkisLethe/xhs-clipper/releases/latest"><img src="https://img.shields.io/badge/version-1.0.0-D8473E?style=flat-square" alt="版本 1.0.0" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-7B68EE?style=flat-square" alt="Apache 2.0 许可证" /></a>
 </p>
 
-XHS Clipper 是一个 Chrome 扩展，用来把当前打开的小红书图文笔记整理成可编辑的纯文本 Markdown。它可以读取笔记正文，也可以在浏览器本地识别图片文字。结果可以下载为 `.md` 文件，或者直接写入本机 Obsidian 仓库。
+XHS Clipper 是一个把小红书图文笔记保存为可编辑 Markdown 的 Chrome 扩展。单篇笔记可以从扩展弹窗剪藏；在首页、搜索结果、博主主页和文章页，也可以通过悬浮工作台筛选并处理一小批笔记。OCR 在 Chrome 本地运行，结果可以下载为 `.md` 文件，或者直接写入本机 Obsidian 仓库。
 
 <p align="center">
   <img
@@ -29,11 +29,14 @@ XHS Clipper 是一个 Chrome 扩展，用来把当前打开的小红书图文笔
 ## 主要功能
 
 - 采集标题、正文、作者、标签、发布时间、互动数量、来源链接和图片顺序。
+- 扫描当前页面已经加载的笔记卡片，按标题关键词筛选，单批最多选择 20 篇。
 - 可选本地 OCR，支持全部图片、跳过封面和自定义页码。
+- 查看每篇笔记的处理阶段和剩余时间，也可以在当前篇完成后停止任务。
 - 修正常见的中英文空格、错误换行、段落断裂和完全重复的 OCR 内容。
 - 在下载前预览并编辑 Markdown。
 - 下载 `.md` 文件，或通过本机 REST API 写入 Obsidian。
-- 检查 Obsidian 中的同名笔记，覆盖前要求确认。
+- 遇到 Obsidian 重复笔记时，可以跳过、另存为新版本或覆盖同一来源的原笔记。
+- 在当前 Chrome 配置中记住 OCR、导出位置、设置分区和浮窗收起状态。
 - 界面跟随 Chrome 的显示语言：`zh_CN` 显示简体中文，`zh_TW` 显示繁体中文，香港及其他语言显示英文。
 
 OCR 使用内置 PP-OCRv6 Tiny 模型。图片和识别结果不会发送给远程 OCR 服务。
@@ -42,12 +45,14 @@ OCR 使用内置 PP-OCRv6 Tiny 模型。图片和识别结果不会发送给远�
 
 ### 直接安装
 
-1. 打开 [Releases](https://github.com/LinkisLethe/xhs-clipper/releases/latest)，在 Assets 中下载 `xhs-clipper-v0.4.1.zip`。不要下载 GitHub 自动生成的 `Source code`。
-2. 解压 ZIP，得到 `xhs-clipper-v0.4.1` 文件夹。Chrome 不能直接加载压缩包。
+1. 打开 [Releases](https://github.com/LinkisLethe/xhs-clipper/releases/latest)，在 Assets 中下载 `xhs-clipper-v1.0.0.zip`。不要下载 GitHub 自动生成的 `Source code`。
+2. 解压 ZIP，得到 `xhs-clipper-v1.0.0` 文件夹。Chrome 不能直接加载压缩包。
 3. 在 Chrome 地址栏输入 `chrome://extensions/`，打开右上角的“开发者模式”。
-4. 点击“加载已解压的扩展程序”，直接选择解压后的 `xhs-clipper-v0.4.1` 文件夹。
+4. 点击“加载已解压的扩展程序”，直接选择解压后的 `xhs-clipper-v1.0.0` 文件夹。
 
-直接安装不需要 Node.js 或 pnpm。安装完成后，把 XHS Clipper 固定到浏览器工具栏，打开一篇小红书图文笔记，再点击扩展图标。
+直接安装不需要 Node.js 或 pnpm。安装完成后，把 XHS Clipper 固定到浏览器工具栏，并刷新安装前已经打开的小红书页面。
+
+升级已解压安装的旧版时，可以把新文件覆盖到 Chrome 当前加载的目录，再点击扩展卡片上的“重新加载”。这样可以保留扩展 ID 和本地设置。如果直接加载新的版本文件夹，请先停用或移除旧版，避免页面出现两个悬浮工作台。
 
 ### 从源码构建
 
@@ -60,7 +65,17 @@ pnpm verify
 
 构建结果位于 `dist` 文件夹。在 `chrome://extensions/` 中加载该文件夹即可。
 
-## 采集和 OCR
+## 批量剪藏工作台
+
+小红书首页、搜索结果、博主主页和文章页都会显示悬浮工作台。点击“扫描当前页”后，插件只读取这个标签页已经加载的笔记卡片。想加载更多内容时，可以先向下滚动，再重新扫描。页面路由切换后，旧结果会被清空。
+
+关键词之间用空格分隔，标题需要同时包含全部关键词才会进入结果。你可以逐篇勾选，也可以选择前 20 篇。确认 OCR 和导出位置后，XHS Clipper 会用非活动标签页逐篇打开、处理并关闭所选文章。
+
+面板会显示当前阶段、已用时间、预计剩余时间和每篇结果。点击停止后，插件会先完成当前文章，再取消后面的任务。点击列表中的文章标题，可以直接进入对应文章。
+
+自动访问仍可能触发平台限流或账号验证。建议控制批量大小，避免短时间反复运行；遇到登录验证或验证码时立即停止。
+
+## 单篇采集和 OCR
 
 采集器打开后会先读取笔记正文和元数据。打开“识别图片文字”后，可以选择识别范围，再点击“开始识别”或“重新识别”。
 
@@ -96,8 +111,8 @@ pnpm verify
 
 ### 2. 配置 XHS Clipper
 
-1. 点击采集器右上角的齿轮按钮。
-2. 填写笔记目录，例如 `Clippings/Xiaohongshu`。
+1. 点击采集器右上角的齿轮按钮，或者点击悬浮工作台中的“配置 Obsidian 权限和导出路径”。
+2. 确认共用导出目录 `Clippings/XHS`。
 3. 填写本机 API 地址。默认值是 `http://127.0.0.1:27123`。
 4. 粘贴 API Key，保存设置，再点击“测试连接”。
 

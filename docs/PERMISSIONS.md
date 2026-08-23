@@ -6,9 +6,9 @@ XHS Clipper requests only the permissions used by its current capture, OCR, expo
 
 | Permission | Use |
 |---|---|
-| `activeTab` | Access the Xiaohongshu post selected by the user after they open the extension. |
-| `scripting` | Run the extractor in the active page so it can read structured page state and visible content. |
-| `storage` | Save OCR preferences and jobs, plus Obsidian settings. |
+| `activeTab` | Access the open Xiaohongshu post after the user activates the popup. |
+| `scripting` | Run the extractor in an open or user-selected post so it can read structured page state and visible content. |
+| `storage` | Save OCR settings, panel preferences, the current batch, up to 200 completion records, and Obsidian settings. |
 | `offscreen` | Keep local OCR running in a hidden extension document instead of tying it to the popup lifetime. |
 | `downloads` | Save the generated Markdown file. |
 | `clipboardWrite` | Copy the edited Markdown preview to the system clipboard. |
@@ -17,11 +17,11 @@ XHS Clipper requests only the permissions used by its current capture, OCR, expo
 
 | Host pattern | Use |
 |---|---|
-| `https://www.xiaohongshu.com/*` and `https://*.xiaohongshu.com/*` | Read the current Xiaohongshu post. |
+| `https://www.xiaohongshu.com/*` and `https://*.xiaohongshu.com/*` | Show the floating workspace, scan post cards already loaded on the current page, and process posts selected by the user. |
 | `https://*.xhscdn.com/*` | Load post images into memory for optional OCR. |
 | Loopback HTTP and HTTPS on `127.0.0.1` and `localhost` | Test and use the user's local Obsidian REST API. |
 
-The extension does not request broad access to every HTTP or HTTPS website. It does not run a persistent content script across browsing sessions.
+The floating-workspace content script runs only on Xiaohongshu pages. It does not run on other websites. Scanning and batch processing still require explicit user actions, and each batch is limited to 20 selected posts.
 
 ## Extension page policy
 

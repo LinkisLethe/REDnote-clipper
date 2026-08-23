@@ -1,7 +1,7 @@
 {
-  "extensionName": { "message": "紅薯 Markdown 採集器" },
-  "extensionDescription": { "message": "將目前的小紅書筆記匯出為純文字 Markdown，可選擇在本機執行 OCR。" },
-  "appSubtitle": { "message": "目前筆記轉純文字 Markdown" },
+  "extensionName": { "message": "XHS Clipper" },
+  "extensionDescription": { "message": "將小紅書筆記批次剪藏為 Markdown，可選擇本機 OCR 和 Obsidian 匯出。" },
+  "appSubtitle": { "message": "單篇與批次剪藏到 Markdown" },
   "refresh": { "message": "重新採集" },
   "settings": { "message": "設定" },
   "settingsTitle": { "message": "Obsidian 寫入設定" },

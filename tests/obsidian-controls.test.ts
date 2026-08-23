@@ -66,7 +66,8 @@ describe("Obsidian settings controls", () => {
     const options = readFileSync("options.html", "utf8");
     expect(background.match(/createObsidianNotePath\(settings\.noteFolder/g)).toHaveLength(2);
     expect(background).not.toContain("AUTO_CLIP_OBSIDIAN_FOLDER");
-    expect(background).toContain('stored?.noteFolder === "Clippings/Xiaohongshu"');
+    expect(background).toContain("noteFolder: DEFAULT_OBSIDIAN_SETTINGS.noteFolder");
+    expect(background).not.toContain("stored?.noteFolder ||");
     expect(options).toContain("单篇剪藏和自动剪藏共用 Clippings/XHS");
   });
 

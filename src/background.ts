@@ -615,11 +615,8 @@ async function getStoredObsidianSettings() {
     chrome.storage.local.get(OBSIDIAN_API_KEY_KEY)
   ]);
   const stored = synced[OBSIDIAN_SETTINGS_KEY] as Partial<ObsidianSettings> | undefined;
-  const noteFolder = stored?.noteFolder === "Clippings/Xiaohongshu"
-    ? DEFAULT_OBSIDIAN_SETTINGS.noteFolder
-    : stored?.noteFolder || DEFAULT_OBSIDIAN_SETTINGS.noteFolder;
   const settings = normalizeObsidianSettings({
-    noteFolder,
+    noteFolder: DEFAULT_OBSIDIAN_SETTINGS.noteFolder,
     apiBaseUrl: stored?.apiBaseUrl || DEFAULT_OBSIDIAN_SETTINGS.apiBaseUrl,
     apiKey: String(local[OBSIDIAN_API_KEY_KEY] || "")
   });

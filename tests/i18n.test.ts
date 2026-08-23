@@ -26,4 +26,13 @@ describe("UI language selection", () => {
       "3/6 張 · 頁碼 2-4"
     );
   });
+
+  it("keeps the XHS Clipper brand in every fallback locale", () => {
+    for (const language of ["zh-CN", "zh-TW", "en"] as const) {
+      expect(createMessageGetter(language)("extensionName")).toBe("XHS Clipper");
+    }
+    expect(createMessageGetter("en")("extensionDescription")).toContain(
+      "Clip Xiaohongshu posts"
+    );
+  });
 });

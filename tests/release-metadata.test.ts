@@ -11,10 +11,16 @@ describe("release metadata", () => {
     const manifest = JSON.parse(readFileSync("public/manifest.json", "utf8")) as {
       version: string;
       default_locale: string;
+      name: string;
+      description: string;
+      version_name?: string;
     };
     expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(manifest.version).toBe(packageJson.version);
     expect(manifest.default_locale).toBe("en");
+    expect(manifest.name).toBe("__MSG_extensionName__");
+    expect(manifest.description).toBe("__MSG_extensionDescription__");
+    expect(manifest.version_name).toBeUndefined();
     expect(packageJson.license).toBe("Apache-2.0");
     expect(packageJson.author).toBe("Hongjia LIN");
 
@@ -36,6 +42,9 @@ describe("release metadata", () => {
     const chinese = readFileSync("README.zh-CN.md", "utf8");
     const privacy = readFileSync("docs/PRIVACY.md", "utf8");
     const permissions = readFileSync("docs/PERMISSIONS.md", "utf8");
+    const options = readFileSync("options.html", "utf8");
+    const content = readFileSync("src/content.ts", "utf8");
+    const popup = readFileSync("popup.html", "utf8");
 
     expect(english).toContain("Write to Obsidian");
     expect(english).toContain("Traditional Chinese");
@@ -43,7 +52,14 @@ describe("release metadata", () => {
     expect(chinese).toContain("繁体中文");
     expect(chinese).not.toContain("暂不支持评论");
     expect(privacy).toContain("loopback address");
+    expect(privacy).toContain("floating workspace");
+    expect(privacy).toContain("up to 200 completed clipping records");
     expect(permissions).toContain("`offscreen`");
+    expect(permissions).toContain("each batch is limited to 20 selected posts");
+    expect(options).not.toContain("实验版");
+    expect(content).not.toContain("实验版扩展");
+    expect(popup).toContain("<title>XHS Clipper</title>");
+    expect(popup).not.toContain("Rednote Markdown Collector");
   });
 
   it("includes public repository licensing and responsible-use notices", () => {

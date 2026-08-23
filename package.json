@@ -1,9 +1,18 @@
 {
-  "name": "rednote-markdown-collector",
-  "version": "0.4.1",
+  "name": "xhs-clipper",
+  "version": "1.0.0",
+  "description": "Clip Xiaohongshu posts to Markdown with local OCR and Obsidian export.",
   "private": true,
   "license": "Apache-2.0",
   "author": "Hongjia LIN",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LinkisLethe/xhs-clipper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LinkisLethe/xhs-clipper/issues"
+  },
+  "homepage": "https://github.com/LinkisLethe/xhs-clipper#readme",
   "type": "module",
   "scripts": {
     "dev": "vite",

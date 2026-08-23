@@ -1051,4 +1051,4 @@ void chrome.runtime.sendMessage({ target: "background", type: "GET_AUTO_CLIP_STA
     panelState = state;
     scheduleTaskStateRender();
   })
-  .catch(() => showToast("无法连接扩展后台，请重新加载实验版扩展", "error"));
+  .catch(() => showToast("无法连接扩展后台，请重新加载 XHS Clipper", "error"));

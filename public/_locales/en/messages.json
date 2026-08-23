@@ -1,7 +1,7 @@
 {
-  "extensionName": { "message": "Rednote Markdown Collector" },
-  "extensionDescription": { "message": "Export the current Xiaohongshu note as plain-text Markdown with optional local OCR." },
-  "appSubtitle": { "message": "Current note to plain-text Markdown" },
+  "extensionName": { "message": "XHS Clipper" },
+  "extensionDescription": { "message": "Clip Xiaohongshu posts as Markdown with optional local OCR and Obsidian export." },
+  "appSubtitle": { "message": "Single and batch clipping to Markdown" },
   "refresh": { "message": "Capture again" },
   "settings": { "message": "Settings" },
   "settingsTitle": { "message": "Obsidian export settings" },

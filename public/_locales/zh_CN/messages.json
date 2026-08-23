@@ -1,7 +1,7 @@
 {
-  "extensionName": { "message": "红薯 Markdown 采集器" },
-  "extensionDescription": { "message": "将当前小红书笔记导出为纯文本 Markdown，可选本地 OCR。" },
-  "appSubtitle": { "message": "当前笔记转纯文本 Markdown" },
+  "extensionName": { "message": "XHS Clipper" },
+  "extensionDescription": { "message": "将小红书笔记批量剪藏为 Markdown，可选本地 OCR 和 Obsidian 导出。" },
+  "appSubtitle": { "message": "单篇与批量剪藏到 Markdown" },
   "refresh": { "message": "重新采集" },
   "settings": { "message": "设置" },
   "settingsTitle": { "message": "Obsidian 写入设置" },

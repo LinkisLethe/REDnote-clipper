@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+## 1.0.0 - 2026-08-24
+
+### Added
+
+- Added a floating clipping workspace to Xiaohongshu home, search, creator, and post pages.
+- Added current-page scanning, all-keyword title filtering, direct post navigation, and explicit selection for batches of up to 20 posts.
+- Added a start summary, per-post status, elapsed and remaining time, and safe stopping after the current post.
+- Added Chrome download and Obsidian output choices to the batch workflow.
+- Added Obsidian duplicate handling with skip, save as a new version, and source-checked overwrite choices.
+- Added local OCR choices for batch tasks, including custom page input and an estimated image count.
+
+### Changed
+
+- Single-post and batch Obsidian exports now share the fixed `Clippings/XHS` directory and the same Local REST API settings.
+- The floating workspace remembers OCR, output, section, and collapsed-window preferences in Chrome local storage.
+- The wide workspace stays anchored to the right edge, shows richer post rows, and keeps the normal panel width when collapsed.
+- Completed batch rows and success messages now clear after a short delay instead of accumulating in the panel.
+
+### Fixed
+
+- Prepared the current post automatically after Xiaohongshu route changes.
+- Prevented selection beyond the 20-post limit and guarded repeated task starts.
+- Allowed repeated scans and clipping tasks without refreshing the page.
+- Fixed repeated wide-mode toggles, stale queue state after reload, and persistent completion notices.
+- Added source-note checks before Obsidian overwrite to avoid replacing an unrelated note with the same filename.
+
 ## 0.4.1 - 2026-08-13
 
 ### Performance

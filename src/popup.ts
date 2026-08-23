@@ -362,35 +362,6 @@ function applyJob(job: OcrJob): void {
   renderOcrProgress(job);
 }
 
-async function restoreOcr(): Promise<void> {
-  if (!note || !ocrToggle.checked) return;
-  if (note.images.length === 0) {
-    setStatus(message("noImages"), "neutral");
-    renderPreview(true);
-    return;
-  }
-  const request: BackgroundRequest = {
-    target: "background",
-    type: "RESTORE_OCR",
-    note
-  };
-  const response = (await chrome.runtime.sendMessage(request)) as
-    | OcrJob
-    | null
-    | { error: string };
-  if (response && "error" in response) {
-    setStatus(message("ocrFailed", localizeOcrError(response.error)), "error");
-    return;
-  }
-  if (response) {
-    applyJob(response);
-    return;
-  }
-  currentJob = null;
-  renderOcrSelection();
-  setStatus(message("ocrSelectionReady"), "neutral");
-}
-
 async function handleStartOcr(): Promise<void> {
   if (!note || !ocrToggle.checked || isOcrJobActive(currentJob)) return;
   const selection = resolveOcrImageIndexes(
@@ -474,7 +445,6 @@ async function capturePage(): Promise<void> {
     setReady(true);
     setStatus(message("ready"), "success");
     renderOcrSelection();
-    if (ocrToggle.checked && isExtensionRuntime()) await restoreOcr();
   } catch (error) {
     console.error(error);
     setStatus(message("captureFailed"), "error");
@@ -492,7 +462,12 @@ async function handleOcrToggle(): Promise<void> {
   updateNoteMeta();
   renderOcrSelection();
   if (ocrToggle.checked) {
-    if (isExtensionRuntime()) await restoreOcr();
+    if (note) {
+      setStatus(
+        note.images.length > 0 ? message("ocrSelectionReady") : message("noImages"),
+        "neutral"
+      );
+    }
     return;
   }
   ocrProgressPanel.hidden = true;

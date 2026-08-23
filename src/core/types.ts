@@ -168,7 +168,6 @@ export type BackgroundRequest =
       note: Note;
       imageIndexes: number[];
     }
-  | { target: "background"; type: "RESTORE_OCR"; note: Note }
   | { target: "background"; type: "CANCEL_OCR"; jobId: string }
   | { target: "background"; type: "PAUSE_OCR"; jobId: string }
   | { target: "background"; type: "RESUME_OCR"; jobId: string }

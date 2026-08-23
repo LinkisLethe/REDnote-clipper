@@ -22,8 +22,7 @@ import { isXiaohongshuNoteUrl, noteIdFromXiaohongshuUrl } from "./core/automatio
 import { resolveOcrImageIndexes, type OcrSelectionMode } from "./core/ocr-selection";
 import {
   OCR_ENABLED_KEY,
-  OCR_PIPELINE_VERSION,
-  shouldReuseOcrJob
+  OCR_PIPELINE_VERSION
 } from "./core/ocr-job";
 import {
   DEFAULT_OBSIDIAN_SETTINGS,
@@ -534,6 +533,12 @@ async function getJob(): Promise<OcrJob | undefined> {
   return value[OCR_JOB_KEY] as OcrJob | undefined;
 }
 
+async function clearJob(jobId: string): Promise<void> {
+  const current = await getJob();
+  if (!current || current.id !== jobId) return;
+  await chrome.storage.local.remove(OCR_JOB_KEY);
+}
+
 async function fetchLocalObsidian(
   url: string,
   init: RequestInit,
@@ -668,7 +673,7 @@ async function notifyPopup(job: OcrJob): Promise<void> {
   try {
     await chrome.runtime.sendMessage(message);
   } catch {
-    // The popup may be closed. The job remains available in extension storage.
+    // The popup may be closed. Terminal job state is discarded after processing.
   }
 }
 
@@ -738,30 +743,36 @@ async function startOcr(note: Note, requestedIndexes: number[]): Promise<OcrJob>
     updatedAt: startedAt
   };
   await saveJob(job);
-  await ensureOffscreenDocument();
-  const request: OffscreenRequest = {
-    target: "offscreen",
-    type: "PROCESS_OCR",
-    jobId: job.id,
-    images: selectedImages
-  };
-  await withTimeout(
-    chrome.runtime.sendMessage(request),
-    OFFSCREEN_TIMEOUT_MS,
-    "Starting the OCR task timed out."
-  );
-  return job;
-}
-
-async function restoreOcr(note: Note): Promise<OcrJob | null> {
-  const stored = await getJob();
-  if (stored) {
-    const workerActive = stored.status === "completed"
-      ? false
-      : await hasActiveOcrJob(stored.id);
-    if (shouldReuseOcrJob(stored, note, workerActive)) return stored;
+  try {
+    await ensureOffscreenDocument();
+    const request: OffscreenRequest = {
+      target: "offscreen",
+      type: "PROCESS_OCR",
+      jobId: job.id,
+      images: selectedImages
+    };
+    await withTimeout(
+      chrome.runtime.sendMessage(request),
+      OFFSCREEN_TIMEOUT_MS,
+      "Starting the OCR task timed out."
+    );
+    return job;
+  } catch (error) {
+    const failed: OcrJob = {
+      ...job,
+      status: "error",
+      error: error instanceof Error ? error.message : String(error),
+      updatedAt: new Date().toISOString()
+    };
+    await saveJob(failed);
+    await notifyPopup(failed);
+    try {
+      await finishAutoClip(failed);
+    } finally {
+      await clearJob(failed.id);
+    }
+    throw error;
   }
-  return null;
 }
 
 async function updateStage(
@@ -822,14 +833,22 @@ async function cancelOcr(jobId: string): Promise<OcrJob | undefined> {
   };
   await saveJob(updated);
   await notifyPopup(updated);
-  await ensureOffscreenDocument();
-  const request: OffscreenRequest = {
-    target: "offscreen",
-    type: "CANCEL_OCR",
-    jobId,
-    abortInitialization: true
-  };
-  await chrome.runtime.sendMessage(request);
+  try {
+    await ensureOffscreenDocument();
+    const request: OffscreenRequest = {
+      target: "offscreen",
+      type: "CANCEL_OCR",
+      jobId,
+      abortInitialization: true
+    };
+    await chrome.runtime.sendMessage(request);
+  } finally {
+    try {
+      await finishAutoClip(updated);
+    } finally {
+      await clearJob(updated.id);
+    }
+  }
   return updated;
 }
 
@@ -925,8 +944,20 @@ async function finishOcr(
   };
   await saveJob(updated);
   await notifyPopup(updated);
-  await finishAutoClip(updated);
+  try {
+    await finishAutoClip(updated);
+  } finally {
+    await clearJob(updated.id);
+  }
   return updated;
+}
+
+async function clearStaleJobState(): Promise<void> {
+  const stored = await getJob();
+  if (!stored) return;
+  const active = ["running", "pausing", "paused", "canceling"].includes(stored.status)
+    && await hasActiveOcrJob(stored.id);
+  if (!active) await clearJob(stored.id);
 }
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
@@ -962,11 +993,6 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
         const run = request as Extract<BackgroundRequest, { type: "RUN_OCR" }>;
         return startOcr(run.note, run.imageIndexes);
       })();
-      break;
-    case "RESTORE_OCR":
-      operation = restoreOcr(
-        (request as Extract<BackgroundRequest, { type: "RESTORE_OCR" }>).note
-      );
       break;
     case "CANCEL_OCR":
       operation = cancelOcr(
@@ -1012,6 +1038,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
   });
   return true;
 });
+
+void clearStaleJobState().catch(() => undefined);
 
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
   const url = changeInfo.url || tab.url;

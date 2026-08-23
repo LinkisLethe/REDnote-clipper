@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { OCR_PIPELINE_VERSION, shouldReuseOcrJob } from "../src/core/ocr-job";
+import { readFileSync } from "node:fs";
+import { OCR_PIPELINE_VERSION, sameOcrJobSource } from "../src/core/ocr-job";
 import type { Note, OcrJob } from "../src/core/types";
 
 const note: Note = {
@@ -19,14 +20,14 @@ const note: Note = {
   extractionSource: "dom"
 };
 
-function job(status: OcrJob["status"]): OcrJob {
+function job(): OcrJob {
   return {
     id: "job-1",
     pipelineVersion: OCR_PIPELINE_VERSION,
     noteId: note.id,
     imageIndexes: [1],
     imageUrls: [note.images[1]?.url || ""],
-    status,
+    status: "running",
     current: 0,
     total: 1,
     results: [null, null],
@@ -39,31 +40,9 @@ function job(status: OcrJob["status"]): OcrJob {
   };
 }
 
-describe("shouldReuseOcrJob", () => {
-  it("rejects a stored running job when its offscreen worker disappeared", () => {
-    expect(shouldReuseOcrJob(job("running"), note, false)).toBe(false);
-  });
-
-  it("keeps a running job while its offscreen worker is alive", () => {
-    expect(shouldReuseOcrJob(job("running"), note, true)).toBe(true);
-  });
-
-  it("keeps completed OCR results without requiring a worker", () => {
-    expect(shouldReuseOcrJob(job("completed"), note, false)).toBe(true);
-  });
-
+describe("sameOcrJobSource", () => {
   it("matches a selected subset against its original image indexes", () => {
-    expect(shouldReuseOcrJob(job("completed"), note, false)).toBe(true);
-  });
-
-  it("reruns OCR when cached results were created by an older pipeline", () => {
-    expect(
-      shouldReuseOcrJob(
-        { ...job("completed"), pipelineVersion: OCR_PIPELINE_VERSION - 1 },
-        note,
-        false
-      )
-    ).toBe(false);
+    expect(sameOcrJobSource(job(), note)).toBe(true);
   });
 
   it("rejects results belonging to another image set", () => {
@@ -74,6 +53,30 @@ describe("shouldReuseOcrJob", () => {
         { index: 1, url: "https://example.com/changed.jpg" }
       ]
     };
-    expect(shouldReuseOcrJob(job("completed"), changed, false)).toBe(false);
+    expect(sameOcrJobSource(job(), changed)).toBe(false);
+  });
+
+  it("rejects results belonging to another note", () => {
+    expect(sameOcrJobSource({ ...job(), noteId: "note-2" }, note)).toBe(false);
+  });
+});
+
+describe("temporary OCR job lifecycle", () => {
+  const background = readFileSync("src/background.ts", "utf8");
+  const popup = readFileSync("src/popup.ts", "utf8");
+  const types = readFileSync("src/core/types.ts", "utf8");
+
+  it("does not expose stored-job restoration or result reuse", () => {
+    expect(background).not.toContain("restoreOcr");
+    expect(popup).not.toContain("restoreOcr");
+    expect(types).not.toContain("RESTORE_OCR");
+    expect(background).not.toContain("shouldReuseOcrJob");
+  });
+
+  it("removes terminal, canceled, failed, and stale job state", () => {
+    expect(background).toContain("chrome.storage.local.remove(OCR_JOB_KEY)");
+    expect(background).toContain("await clearJob(failed.id)");
+    expect(background.match(/await clearJob\(updated\.id\)/g)).toHaveLength(2);
+    expect(background).toContain("void clearStaleJobState().catch(() => undefined)");
   });
 });

@@ -10,6 +10,8 @@ const ROOT_ID = "xhs-clipper-auto-root";
 const PANEL_ID = "xhs-clipper-auto-panel";
 const AUTO_CLIP_BATCH_LIMIT = 20;
 const PANEL_WIDE_MAX_WIDTH = 800;
+const PANEL_PREFERENCES_KEY = "autoClipPanelPreferences";
+const COMPLETION_DISPLAY_MS = 5_000;
 const WINDOW_ICONS = {
   maximize: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="2"/></svg>',
   restore: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h9A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H17"/><rect x="4" y="8" width="12" height="12" rx="1.5"/></svg>',
@@ -18,10 +20,23 @@ const WINDOW_ICONS = {
 } as const;
 const candidates = new Map<string, AutoClipCandidate>();
 const selectedNoteIds = new Set<string>();
+type PanelOcrMode = "all" | "skip-cover" | "custom";
+interface PanelPreferences {
+  ocrEnabled: boolean;
+  ocrMode: PanelOcrMode;
+  ocrRange: string;
+  output: AutoClipOutput;
+  contentSettingsOpen: boolean;
+  outputSettingsOpen: boolean;
+  panelMinimized: boolean;
+}
 let root: ShadowRoot;
 let routeTimer: ReturnType<typeof setTimeout> | undefined;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
+let preferenceSaveTimer: ReturnType<typeof setTimeout> | undefined;
+let completionResetTimer: ReturnType<typeof setTimeout> | undefined;
 let taskRenderFrame: number | undefined;
+let panelPreferencesReady = false;
 let startingBatch = false;
 let lastCompletionToastTaskId = "";
 let lastQueueRenderKey = "";
@@ -155,7 +170,10 @@ function showToast(text: string, state: "working" | "success" | "error" = "worki
   toast.hidden = false;
   toast.onclick = state === "error" ? () => { if (toast) toast.hidden = true; } : null;
   if (state !== "error") {
-    toastTimer = setTimeout(() => { if (toast) toast.hidden = true; }, state === "success" ? 5_000 : 3_000);
+    toastTimer = setTimeout(
+      () => { if (toast) toast.hidden = true; },
+      state === "success" ? COMPLETION_DISPLAY_MS : 3_000
+    );
   }
 }
 
@@ -277,14 +295,34 @@ function chooseDuplicatePolicy(count: number): Promise<AutoClipDuplicatePolicy |
   });
 }
 
-function queueRenderKey(): string {
-  return panelState.queue.map((item) => [
+function queueRenderKey(items: AutoClipPanelState["queue"]): string {
+  return items.map((item) => [
     item.url,
     item.title,
     item.status,
     item.error || "",
     item.filename || ""
   ].join("\u001f")).join("\u001e");
+}
+
+function scheduleCompletedTaskReset(taskId: string): void {
+  if (completionResetTimer !== undefined) clearTimeout(completionResetTimer);
+  completionResetTimer = setTimeout(() => {
+    completionResetTimer = undefined;
+    if (panelState.running || panelState.taskId !== taskId) return;
+    panelState = {
+      ...panelState,
+      taskId: undefined,
+      output: undefined,
+      currentIndex: 0,
+      total: 0,
+      progress: 0,
+      stage: undefined,
+      queue: []
+    };
+    lastQueueRenderKey = "";
+    renderTaskState();
+  }, COMPLETION_DISPLAY_MS);
 }
 
 function scheduleTaskStateRender(): void {
@@ -303,6 +341,11 @@ function renderTaskState(): void {
   const completed = panelState.queue.filter((item) => item.status === "completed").length;
   const skipped = panelState.queue.filter((item) => item.status === "skipped").length;
   const failed = panelState.queue.filter((item) => item.status === "error").length;
+  const visibleQueue = panelState.queue.filter((item) => item.status !== "completed");
+  if (panelState.running && completionResetTimer !== undefined) {
+    clearTimeout(completionResetTimer);
+    completionResetTimer = undefined;
+  }
   progress.style.width = `${Math.max(0, Math.min(100, panelState.progress))}%`;
   panelElement<HTMLElement>("[data-role='progress-label']").textContent = panelState.running
     ? `正在处理 ${panelState.currentIndex + 1}/${panelState.total}`
@@ -313,10 +356,10 @@ function renderTaskState(): void {
     : panelState.queue.length > 0
       ? `剪藏结束，成功 ${completed} 篇，跳过 ${skipped} 篇，失败 ${failed} 篇`
       : "还没有运行任务";
-  const nextQueueRenderKey = queueRenderKey();
+  const nextQueueRenderKey = queueRenderKey(visibleQueue);
   if (nextQueueRenderKey !== lastQueueRenderKey) {
     lastQueueRenderKey = nextQueueRenderKey;
-    queue.replaceChildren(...panelState.queue.map((item) => {
+    queue.replaceChildren(...visibleQueue.map((item) => {
       const row = document.createElement("div");
       row.className = `queue-row is-${item.status}`;
       const status = document.createElement("span");
@@ -338,6 +381,83 @@ function renderTaskState(): void {
       && lastCompletionToastTaskId !== panelState.taskId) {
     lastCompletionToastTaskId = panelState.taskId;
     showToast(`剪藏结束，成功 ${completed} 篇，跳过 ${skipped} 篇，失败 ${failed} 篇`, "success");
+    scheduleCompletedTaskReset(panelState.taskId);
+  }
+}
+
+function updateMinimizeButtonState(panel: HTMLElement, minimize: HTMLButtonElement): void {
+  const minimized = panel.classList.contains("is-minimized");
+  minimize.innerHTML = minimized ? WINDOW_ICONS.expand : WINDOW_ICONS.collapse;
+  minimize.setAttribute("aria-label", minimized ? "打开窗口" : "收起窗口");
+  minimize.title = minimized ? "打开窗口" : "收起窗口";
+}
+
+function currentPanelPreferences(): PanelPreferences {
+  const ocrMode = panelElement<HTMLInputElement>('input[name="xhs-auto-ocr-mode"]:checked').value as PanelOcrMode;
+  const output = panelElement<HTMLInputElement>('input[name="xhs-auto-output"]:checked').value as AutoClipOutput;
+  const panel = root.querySelector<HTMLElement>(`#${PANEL_ID}`)!;
+  return {
+    ocrEnabled: panelElement<HTMLInputElement>("[data-role='ocr-enabled']").checked,
+    ocrMode,
+    ocrRange: panelElement<HTMLInputElement>("[data-role='ocr-range']").value,
+    output,
+    contentSettingsOpen: panelElement<HTMLDetailsElement>("[data-role='content-settings']").open,
+    outputSettingsOpen: panelElement<HTMLDetailsElement>("[data-role='output-settings']").open,
+    panelMinimized: panel.classList.contains("is-minimized")
+  };
+}
+
+function queuePanelPreferencesSave(): void {
+  if (!panelPreferencesReady) return;
+  if (preferenceSaveTimer !== undefined) clearTimeout(preferenceSaveTimer);
+  preferenceSaveTimer = setTimeout(() => {
+    preferenceSaveTimer = undefined;
+    void chrome.storage.local
+      .set({ [PANEL_PREFERENCES_KEY]: currentPanelPreferences() })
+      .catch(() => undefined);
+  }, 200);
+}
+
+async function restorePanelPreferences(): Promise<void> {
+  try {
+    const stored = await chrome.storage.local.get(PANEL_PREFERENCES_KEY);
+    const preferences = stored[PANEL_PREFERENCES_KEY] as Partial<PanelPreferences> | undefined;
+    if (!preferences) return;
+    if (typeof preferences.ocrEnabled === "boolean") {
+      panelElement<HTMLInputElement>("[data-role='ocr-enabled']").checked = preferences.ocrEnabled;
+    }
+    if (["all", "skip-cover", "custom"].includes(preferences.ocrMode || "")) {
+      const mode = root.querySelector<HTMLInputElement>(
+        `input[name="xhs-auto-ocr-mode"][value="${preferences.ocrMode}"]`
+      );
+      if (mode) mode.checked = true;
+    }
+    if (typeof preferences.ocrRange === "string") {
+      panelElement<HTMLInputElement>("[data-role='ocr-range']").value = preferences.ocrRange;
+    }
+    if (["download", "obsidian"].includes(preferences.output || "")) {
+      const output = root.querySelector<HTMLInputElement>(
+        `input[name="xhs-auto-output"][value="${preferences.output}"]`
+      );
+      if (output) output.checked = true;
+    }
+    if (typeof preferences.contentSettingsOpen === "boolean") {
+      panelElement<HTMLDetailsElement>("[data-role='content-settings']").open = preferences.contentSettingsOpen;
+    }
+    if (typeof preferences.outputSettingsOpen === "boolean") {
+      panelElement<HTMLDetailsElement>("[data-role='output-settings']").open = preferences.outputSettingsOpen;
+    }
+    const panel = root.querySelector<HTMLElement>(`#${PANEL_ID}`)!;
+    panel.classList.toggle("is-minimized", Boolean(preferences.panelMinimized));
+    updateMinimizeButtonState(
+      panel,
+      panelElement<HTMLButtonElement>("[data-action='minimize']")
+    );
+    updateOcrControls();
+  } catch {
+    // 存储不可用时保留面板默认值，不阻断剪藏功能。
+  } finally {
+    panelPreferencesReady = true;
   }
 }
 
@@ -477,7 +597,7 @@ function createControlPanel(): void {
     <header class="panel-header" data-role="header"><span class="brand-dot" aria-hidden="true"></span><span class="brand"><strong>XHS Clipper</strong><span class="scope" data-role="scope">${scopeLabel()} · 当前页</span></span><span class="window-actions"><button class="window-button" data-action="resize" type="button" aria-label="宽屏模式" title="宽屏模式">${WINDOW_ICONS.maximize}</button><button class="window-button" data-action="minimize" type="button" aria-label="收起窗口" title="收起窗口">${WINDOW_ICONS.collapse}</button></span></header>
     <main class="panel-body">
       <section class="main-pane"><div class="section"><div class="section-heading"><span class="section-title"><strong>筛选当前页</strong><span>扫描当前页面已经加载的笔记，不会跨页面混入旧结果</span></span><span class="count-group"><span class="badge" data-role="source-count">当前页已加载 0</span><span class="badge" data-role="match-count">找到 0</span><span class="badge" data-role="selected-count">已选 0</span></span></div><div class="search-row"><input class="text-input" data-role="query" data-task-control type="text" placeholder="可选关键词，例如 新二 cs"><button class="button button-primary" data-action="search" data-task-control type="button">扫描当前页</button></div><div class="selection-bar"><button class="button button-secondary" data-action="select-all" data-task-control type="button">选择前 20 篇</button><button class="button button-secondary" data-action="select-none" data-task-control type="button">清空选择</button><span class="selection-hint">单批最多 ${AUTO_CLIP_BATCH_LIMIT} 篇</span></div><div class="matches" data-role="matches"><div class="empty-state"><strong>先扫描当前页面</strong><span>主页、搜索页和博主主页都可以使用；继续滚动后可再次扫描。</span></div></div></div></section>
-      <aside class="side-pane"><div class="settings-grid"><details class="setting-card" open><summary>内容识别</summary><div class="setting-content"><label class="setting-row"><input type="checkbox" data-role="ocr-enabled" data-task-control checked><span class="setting-copy"><strong>启用本地 OCR</strong><small>关闭后只保存网页正文与原图</small></span></label><div class="ocr-options" data-role="ocr-options"><label><input type="radio" name="xhs-auto-ocr-mode" data-task-control value="all" checked>全部图片</label><label><input type="radio" name="xhs-auto-ocr-mode" data-task-control value="skip-cover">跳过封面</label><label><input type="radio" name="xhs-auto-ocr-mode" data-task-control value="custom">自定义页码</label><input class="text-input ocr-range" data-role="ocr-range" data-task-control type="text" placeholder="例如 1,3-5" disabled></div></div></details><details class="setting-card" open><summary>导出位置</summary><div class="setting-content output-options"><label><input type="radio" name="xhs-auto-output" data-task-control value="download" checked>Chrome 默认下载路径</label><label><input type="radio" name="xhs-auto-output" data-task-control value="obsidian">Obsidian · Clippings/XHS</label><button class="button button-secondary settings-button" data-action="obsidian-settings" type="button">配置实验版 Obsidian</button></div></details></div><div class="action-zone"><button class="button button-primary start-button" data-action="start" data-task-control type="button" disabled>开始剪藏</button><div class="task-card"><div class="progress-heading"><span data-role="progress-label">任务状态</span><span data-role="progress-value">0%</span></div><div class="progress-track"><i data-role="progress"></i></div><p class="task-summary" data-role="summary">还没有运行任务</p><div class="queue" data-role="queue"></div></div></div></aside>
+      <aside class="side-pane"><div class="settings-grid"><details class="setting-card" data-role="content-settings" open><summary>内容识别</summary><div class="setting-content"><label class="setting-row"><input type="checkbox" data-role="ocr-enabled" data-task-control checked><span class="setting-copy"><strong>启用本地 OCR</strong><small>关闭后只保存网页正文与原图</small></span></label><div class="ocr-options" data-role="ocr-options"><label><input type="radio" name="xhs-auto-ocr-mode" data-task-control value="all" checked>全部图片</label><label><input type="radio" name="xhs-auto-ocr-mode" data-task-control value="skip-cover">跳过封面</label><label><input type="radio" name="xhs-auto-ocr-mode" data-task-control value="custom">自定义页码</label><input class="text-input ocr-range" data-role="ocr-range" data-task-control type="text" placeholder="例如 1,3-5" disabled></div></div></details><details class="setting-card" data-role="output-settings" open><summary>导出位置</summary><div class="setting-content output-options"><label><input type="radio" name="xhs-auto-output" data-task-control value="download" checked>Chrome 默认下载路径</label><label><input type="radio" name="xhs-auto-output" data-task-control value="obsidian">Obsidian · Clippings/XHS</label><button class="button button-secondary settings-button" data-action="obsidian-settings" type="button">配置实验版 Obsidian</button></div></details></div><div class="action-zone"><button class="button button-primary start-button" data-action="start" data-task-control type="button" disabled>开始剪藏</button><div class="task-card"><div class="progress-heading"><span data-role="progress-label">任务状态</span><span data-role="progress-value">0%</span></div><div class="progress-track"><i data-role="progress"></i></div><p class="task-summary" data-role="summary">还没有运行任务</p><div class="queue" data-role="queue"></div></div></div></aside>
     </main>
     <div class="duplicate-dialog" data-role="duplicate-dialog" hidden><section class="duplicate-card" role="dialog" aria-modal="true" aria-labelledby="xhs-duplicate-title" aria-describedby="xhs-duplicate-copy"><div class="duplicate-heading"><strong id="xhs-duplicate-title">发现重复笔记</strong><button class="dialog-close" data-action="duplicate-close" type="button" aria-label="取消" title="取消">×</button></div><p class="duplicate-copy" id="xhs-duplicate-copy" data-role="duplicate-count"></p><div class="duplicate-options"><button class="button button-secondary duplicate-option" data-duplicate-policy="skip" type="button"><strong>跳过</strong><span>保留原笔记，只处理没保存过的文章</span></button><button class="button button-secondary duplicate-option" data-duplicate-policy="new-version" type="button"><strong>另存为新版本</strong><span>保留原笔记，另存一份带更新时间的笔记</span></button><button class="button button-secondary duplicate-option is-danger" data-duplicate-policy="overwrite" type="button"><strong>覆盖原笔记</strong><span>用本次剪藏内容替换原笔记</span></button></div></section></div>`;
   root.append(style, panel);
@@ -488,10 +608,7 @@ function createControlPanel(): void {
   const resize = panelElement<HTMLButtonElement>("[data-action='resize']");
   let normalPanelSize: { width: number; height: number } | undefined;
   const updateMinimizeButton = () => {
-    const minimized = panel.classList.contains("is-minimized");
-    minimize.innerHTML = minimized ? WINDOW_ICONS.expand : WINDOW_ICONS.collapse;
-    minimize.setAttribute("aria-label", minimized ? "打开窗口" : "收起窗口");
-    minimize.title = minimized ? "打开窗口" : "收起窗口";
+    updateMinimizeButtonState(panel, minimize);
   };
   const updateResizeButton = () => {
     const wide = panel.classList.contains("is-wide");
@@ -515,6 +632,7 @@ function createControlPanel(): void {
     if (panel.classList.contains("is-wide")) restoreNormalPanelSize();
     panel.classList.toggle("is-minimized");
     updateMinimizeButton();
+    queuePanelPreferencesSave();
   };
   resize.onclick = () => {
     if (panel.classList.contains("is-wide")) {
@@ -524,6 +642,7 @@ function createControlPanel(): void {
     if (panel.classList.contains("is-minimized")) {
       panel.classList.remove("is-minimized");
       updateMinimizeButton();
+      queuePanelPreferencesSave();
     }
     const rect = panel.getBoundingClientRect();
     normalPanelSize = { width: rect.width, height: rect.height };
@@ -561,8 +680,22 @@ function createControlPanel(): void {
     for (const checkbox of root.querySelectorAll<HTMLInputElement>("[data-role='matches'] input[type='checkbox']")) checkbox.checked = false;
     updateSelectedCount();
   };
-  panelElement<HTMLInputElement>("[data-role='ocr-enabled']").addEventListener("change", updateOcrControls);
-  for (const input of root.querySelectorAll<HTMLInputElement>('input[name="xhs-auto-ocr-mode"]')) input.addEventListener("change", updateOcrControls);
+  panelElement<HTMLInputElement>("[data-role='ocr-enabled']").addEventListener("change", () => {
+    updateOcrControls();
+    queuePanelPreferencesSave();
+  });
+  for (const input of root.querySelectorAll<HTMLInputElement>('input[name="xhs-auto-ocr-mode"]')) {
+    input.addEventListener("change", () => {
+      updateOcrControls();
+      queuePanelPreferencesSave();
+    });
+  }
+  panelElement<HTMLInputElement>("[data-role='ocr-range']").addEventListener("input", queuePanelPreferencesSave);
+  for (const input of root.querySelectorAll<HTMLInputElement>('input[name="xhs-auto-output"]')) {
+    input.addEventListener("change", queuePanelPreferencesSave);
+  }
+  panelElement<HTMLDetailsElement>("[data-role='content-settings']").addEventListener("toggle", queuePanelPreferencesSave);
+  panelElement<HTMLDetailsElement>("[data-role='output-settings']").addEventListener("toggle", queuePanelPreferencesSave);
   panelElement<HTMLInputElement>("[data-role='query']").addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       selectedNoteIds.clear();
@@ -632,6 +765,7 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
 });
 
 createControlPanel();
+void restorePanelPreferences();
 syncPageScope(true);
 window.addEventListener("popstate", () => syncPageScope());
 window.addEventListener("hashchange", () => syncPageScope());

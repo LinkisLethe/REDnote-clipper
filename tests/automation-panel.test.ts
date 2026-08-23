@@ -93,4 +93,34 @@ describe("automation panel entry points and design guardrails", () => {
     expect(content.indexOf('panel.style.removeProperty("width")'))
       .toBeLessThan(content.indexOf('panel.classList.add("is-wide")'));
   });
+
+  it("remembers panel choices and collapsed sections in extension storage", () => {
+    expect(content).toContain('PANEL_PREFERENCES_KEY = "autoClipPanelPreferences"');
+    expect(content).toContain("chrome.storage.local.get(PANEL_PREFERENCES_KEY)");
+    expect(content).toContain("[PANEL_PREFERENCES_KEY]: currentPanelPreferences()");
+    expect(content).toContain("ocrEnabled: panelElement<HTMLInputElement>");
+    expect(content).toContain("ocrMode,");
+    expect(content).toContain("ocrRange: panelElement<HTMLInputElement>");
+    expect(content).toContain("output,");
+    expect(content).toContain("contentSettingsOpen:");
+    expect(content).toContain("outputSettingsOpen:");
+    expect(content).toContain("panelMinimized:");
+    expect(content).toContain('data-role="content-settings"');
+    expect(content).toContain('data-role="output-settings"');
+    expect(content).toContain('addEventListener("toggle", queuePanelPreferencesSave)');
+    expect(content).toContain('panel.classList.toggle("is-minimized", Boolean(preferences.panelMinimized))');
+    expect(content).toContain("panelPreferencesReady = true");
+  });
+
+  it("removes completed rows and clears the transient result without losing history", () => {
+    expect(content).toContain("COMPLETION_DISPLAY_MS = 5_000");
+    expect(content).toContain('state === "success" ? COMPLETION_DISPLAY_MS : 3_000');
+    expect(content).toContain('panelState.queue.filter((item) => item.status !== "completed")');
+    expect(content).toContain("scheduleCompletedTaskReset(panelState.taskId)");
+    expect(content).toContain("}, COMPLETION_DISPLAY_MS)");
+    expect(content).toContain("...panelState,");
+    expect(content).toContain("taskId: undefined,");
+    expect(content).toContain("queue: []");
+    expect(content).not.toContain("history: []\n    };");
+  });
 });

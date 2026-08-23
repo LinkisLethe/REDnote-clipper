@@ -37,6 +37,17 @@ describe("release metadata", () => {
     expect(releaseNotes).toContain(archiveName);
   });
 
+  it("keeps the tag release workflow safe to rerun", () => {
+    const workflow = readFileSync(".github/workflows/release.yml", "utf8");
+    expect(workflow).toContain('gh release view "${GITHUB_REF_NAME}"');
+    expect(workflow).toContain('gh release upload "${GITHUB_REF_NAME}"');
+    expect(workflow).toContain("--clobber");
+    expect(workflow).toContain('gh release edit "${GITHUB_REF_NAME}"');
+    expect(workflow).toContain('gh release create "${GITHUB_REF_NAME}"');
+    expect(workflow.indexOf("gh release view")).toBeLessThan(workflow.indexOf("gh release upload"));
+    expect(workflow.indexOf("gh release upload")).toBeLessThan(workflow.indexOf("gh release edit"));
+  });
+
   it("documents the current Obsidian feature and privacy behavior", () => {
     const english = readFileSync("README.md", "utf8");
     const chinese = readFileSync("README.zh-CN.md", "utf8");

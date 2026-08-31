@@ -4,7 +4,7 @@
   <img src="docs/images/xhs-clipper-logo.png" alt="XHS Clipper logo" width="128" />
 </p>
 
-<h1 align="center">XHS Clipper</h1>
+<h1 align="center">REDnote Clipper</h1>
 
 <p align="center">Clip one or more Xiaohongshu posts into editable, plain-text Markdown.</p>
 
@@ -12,11 +12,11 @@
   <a href="https://www.google.com/chrome/"><img src="https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&amp;logoColor=white&amp;style=flat-square" alt="Chrome 116+" /></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-7.x-3178C6?logo=typescript&amp;logoColor=white&amp;style=flat-square" alt="TypeScript 7.x" /></a>
   <a href="https://github.com/PaddlePaddle/PaddleOCR"><img src="https://img.shields.io/badge/OCR-PP--OCRv6-0C7BDC?style=flat-square" alt="PP-OCRv6" /></a>
-  <a href="https://github.com/LinkisLethe/xhs-clipper/releases/latest"><img src="https://img.shields.io/badge/version-1.0.1-D8473E?style=flat-square" alt="Version 1.0.1" /></a>
+  <a href="https://github.com/LinkisLethe/REDnote-clipper/releases/latest"><img src="https://img.shields.io/badge/version-1.0.1-D8473E?style=flat-square" alt="Version 1.0.1" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-7B68EE?style=flat-square" alt="Apache 2.0 license" /></a>
 </p>
 
-XHS Clipper is a Chrome extension for saving Xiaohongshu image posts as editable Markdown. The floating workspace handles the current post or a selection of up to 20 posts from the home feed, search results, and creator profiles. Select the extension button in the Chrome toolbar to open or collapse the workspace. OCR runs locally in Chrome. Each result can be downloaded as a `.md` file or written to a local Obsidian vault.
+REDnote Clipper (named XHS Clipper in the extension interface) is a Chrome extension for saving Xiaohongshu image posts as editable Markdown. The floating workspace handles the current post or a selection of up to 20 posts from the home feed, search results, and creator profiles. Select the extension button in the Chrome toolbar to open or collapse the workspace. OCR runs locally in Chrome. Each result can be downloaded as a `.md` file or written to a local Obsidian vault.
 
 <p align="center">
   <img
@@ -40,11 +40,19 @@ XHS Clipper is a Chrome extension for saving Xiaohongshu image posts as editable
 
 OCR runs with bundled PP-OCRv6 Tiny models. Images and recognized text are not sent to a remote OCR service.
 
+## Performance
+
+Updated: 2026-08-31
+
+Using browser-based OCR and long-image tiling, REDnote Clipper batch-converted REDnote posts and image text into editable Markdown, with a mean image-text extraction time of 684.1 ms per image in a 120-post test.
+
+[Performance record](docs/PERFORMANCE.zh-CN.md).
+
 ## Installation
 
 ### Install the packaged extension
 
-1. Open the [latest release](https://github.com/LinkisLethe/xhs-clipper/releases/latest) and download `xhs-clipper-v1.0.1.zip` from **Assets**. Do not download GitHub's automatically generated **Source code** archives.
+1. Open the [latest release](https://github.com/LinkisLethe/REDnote-clipper/releases/latest) and download `xhs-clipper-v1.0.1.zip` from **Assets**. Do not download GitHub's automatically generated **Source code** archives.
 2. Extract the ZIP to get the `xhs-clipper-v1.0.1` folder. Chrome cannot load the ZIP directly.
 3. Open `chrome://extensions/` and enable **Developer mode**.
 4. Select **Load unpacked**, then choose the extracted `xhs-clipper-v1.0.1` folder.

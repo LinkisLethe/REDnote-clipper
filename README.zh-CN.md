@@ -4,7 +4,7 @@
   <img src="docs/images/xhs-clipper-logo.png" alt="XHS Clipper Logo" width="128" />
 </p>
 
-<h1 align="center">XHS Clipper</h1>
+<h1 align="center">REDnote Clipper</h1>
 
 <p align="center">把一篇或多篇小红书图文笔记整理成可编辑的纯文本 Markdown。</p>
 
@@ -12,11 +12,11 @@
   <a href="https://www.google.com/chrome/"><img src="https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&amp;logoColor=white&amp;style=flat-square" alt="Chrome 116+" /></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-7.x-3178C6?logo=typescript&amp;logoColor=white&amp;style=flat-square" alt="TypeScript 7.x" /></a>
   <a href="https://github.com/PaddlePaddle/PaddleOCR"><img src="https://img.shields.io/badge/OCR-PP--OCRv6-0C7BDC?style=flat-square" alt="PP-OCRv6" /></a>
-  <a href="https://github.com/LinkisLethe/xhs-clipper/releases/latest"><img src="https://img.shields.io/badge/version-1.0.1-D8473E?style=flat-square" alt="版本 1.0.1" /></a>
+  <a href="https://github.com/LinkisLethe/REDnote-clipper/releases/latest"><img src="https://img.shields.io/badge/version-1.0.1-D8473E?style=flat-square" alt="版本 1.0.1" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-7B68EE?style=flat-square" alt="Apache 2.0 许可证" /></a>
 </p>
 
-XHS Clipper 是一个把小红书图文笔记保存为可编辑 Markdown 的 Chrome 扩展。悬浮工作台可以处理当前文章，也可以在首页、搜索结果和博主主页筛选并处理最多 20 篇笔记。点击浏览器工具栏中的插件图标，可以打开或收起工作台。OCR 在 Chrome 本地运行，结果可以下载为 `.md` 文件，或者直接写入本机 Obsidian 仓库。
+REDnote Clipper（扩展界面名称为 XHS Clipper）是一个把小红书图文笔记保存为可编辑 Markdown 的 Chrome 扩展。悬浮工作台可以处理当前文章，也可以在首页、搜索结果和博主主页筛选并处理最多 20 篇笔记。点击浏览器工具栏中的插件图标，可以打开或收起工作台。OCR 在 Chrome 本地运行，结果可以下载为 `.md` 文件，或者直接写入本机 Obsidian 仓库。
 
 <p align="center">
   <img
@@ -40,11 +40,19 @@ XHS Clipper 是一个把小红书图文笔记保存为可编辑 Markdown 的 Chr
 
 OCR 使用内置 PP-OCRv6 Tiny 模型。图片和识别结果不会发送给远程 OCR 服务。
 
+## 性能记录
+
+更新日期：2026-08-31
+
+通过浏览器本地 OCR 与长图分块，将 REDnote 笔记及图片文字批量转换为可编辑 Markdown，在 120 篇笔记测试中，图片文字提取的平均耗时为 684.1 ms/张。
+
+[性能报告](docs/PERFORMANCE.zh-CN.md)。
+
 ## 安装
 
 ### 直接安装
 
-1. 打开 [Releases](https://github.com/LinkisLethe/xhs-clipper/releases/latest)，在 Assets 中下载 `xhs-clipper-v1.0.1.zip`。不要下载 GitHub 自动生成的 `Source code`。
+1. 打开 [Releases](https://github.com/LinkisLethe/REDnote-clipper/releases/latest)，在 Assets 中下载 `xhs-clipper-v1.0.1.zip`。不要下载 GitHub 自动生成的 `Source code`。
 2. 解压 ZIP，得到 `xhs-clipper-v1.0.1` 文件夹。Chrome 不能直接加载压缩包。
 3. 在 Chrome 地址栏输入 `chrome://extensions/`，打开右上角的“开发者模式”。
 4. 点击“加载已解压的扩展程序”，直接选择解压后的 `xhs-clipper-v1.0.1` 文件夹。
